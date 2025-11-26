@@ -19,6 +19,7 @@ type debtService struct {
 	contactRepo            interfaces.ContactRepository
 	paymentScheduleService interfaces.PaymentScheduleService
 	fileStorageService     interfaces.FileStorageService
+	notificationService    interfaces.NotificationService
 }
 
 // NewDebtService creates a new debt service
@@ -28,6 +29,7 @@ func NewDebtService(
 	contactRepo interfaces.ContactRepository,
 	paymentScheduleService interfaces.PaymentScheduleService,
 	fileStorageService interfaces.FileStorageService,
+	notificationService interfaces.NotificationService,
 ) interfaces.DebtService {
 	return &debtService{
 		debtListRepo:           debtListRepo,
@@ -35,6 +37,7 @@ func NewDebtService(
 		contactRepo:            contactRepo,
 		paymentScheduleService: paymentScheduleService,
 		fileStorageService:     fileStorageService,
+		notificationService:    notificationService,
 	}
 }
 
@@ -150,6 +153,15 @@ func (s *debtService) CreateDebtList(ctx context.Context, userID uuid.UUID, req 
 
 	if err := s.debtListRepo.Create(ctx, debtList); err != nil {
 		return nil, fmt.Errorf("failed to create debt list: %w", err)
+	}
+
+	// Schedule notifications for the new debt list (async, don't fail if notifications fail)
+	if s.notificationService != nil {
+		if err := s.notificationService.CreateNotificationsForDebtList(userID, debtList.ID); err != nil {
+			// Log error but don't fail the debt list creation
+			// TODO: Add proper logging here
+			_ = err // Suppress unused variable warning for now
+		}
 	}
 
 	return debtList, nil
@@ -484,6 +496,14 @@ func (s *debtService) CreateDebtItem(ctx context.Context, userID uuid.UUID, req 
 	// Update debt list status, next payment date, and payment totals
 	if err := s.updateDebtListStatusAndPaymentTotals(ctx, debtList.ID); err != nil {
 		return nil, fmt.Errorf("failed to update debt list totals: %w", err)
+	}
+
+	// Send payment confirmation notification (async, don't fail if notification fails)
+	if s.notificationService != nil {
+		if err := s.notificationService.SendPaymentConfirmationNotifications(debtItem.ID); err != nil {
+			// Log error but don't fail the debt item creation
+			_ = err // Suppress unused variable warning for now
+		}
 	}
 
 	return debtItem, nil
@@ -961,6 +981,42 @@ func (s *debtService) VerifyDebtItem(ctx context.Context, id uuid.UUID, userID u
 		if err := s.updateDebtListStatusAndPaymentTotals(ctx, debtItem.DebtListID); err != nil {
 			return nil, fmt.Errorf("failed to update debt list totals: %w", err)
 		}
+
+		// Auto-disable notifications for paid installments
+		if s.notificationService != nil {
+			// Get the debt list to check payment schedule
+			debtListForSchedule, err := s.debtListRepo.GetByID(ctx, debtItem.DebtListID)
+			if err == nil {
+				// Get all debt items for this debt list
+				debtItems, err := s.debtItemRepo.GetByDebtListID(ctx, debtItem.DebtListID)
+				if err == nil {
+					// Calculate payment schedule to determine which installment was paid
+					schedule := s.paymentScheduleService.CalculatePaymentSchedule(debtListForSchedule, debtItems)
+					// Find paid installments and disable their notifications
+					for _, item := range schedule {
+						if item.Status == "paid" {
+							if err := s.notificationService.DisableNotificationsForPaidInstallment(debtItem.DebtListID, item.PaymentNumber); err != nil {
+								// Log error but don't fail the verification
+								_ = err
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// Send verification notification (async, don't fail if notification fails)
+	if s.notificationService != nil {
+		verified := req.Status == entities.PaymentStatusCompleted
+		reason := ""
+		if req.VerificationNotes != nil {
+			reason = *req.VerificationNotes
+		}
+		if err := s.notificationService.SendPaymentVerificationNotification(updatedDebtItem.ID, verified, reason); err != nil {
+			// Log error but don't fail the verification
+			_ = err // Suppress unused variable warning for now
+		}
 	}
 
 	return updatedDebtItem, nil
@@ -986,6 +1042,18 @@ func (s *debtService) RejectDebtItem(ctx context.Context, id uuid.UUID, userID u
 	updatedDebtItem, err := s.GetDebtItemForVerification(ctx, id, userID)
 	if err != nil {
 		return nil, err
+	}
+
+	// Send rejection notification (async, don't fail if notification fails)
+	if s.notificationService != nil {
+		reason := ""
+		if notes != nil {
+			reason = *notes
+		}
+		if err := s.notificationService.SendPaymentVerificationNotification(updatedDebtItem.ID, false, reason); err != nil {
+			// Log error but don't fail the rejection
+			_ = err // Suppress unused variable warning for now
+		}
 	}
 
 	return updatedDebtItem, nil

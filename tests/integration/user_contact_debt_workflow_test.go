@@ -58,7 +58,7 @@ func (suite *UserContactDebtWorkflowTestSuite) SetupSuite() {
 	suite.contactService = services.NewContactService(suite.contactRepo, suite.userRepo)
 	// Create mock file storage service for testing
 	mockFileStorageService := &mocks.MockFileStorageService{}
-	suite.debtService = services.NewDebtService(suite.debtListRepo, suite.debtItemRepo, suite.contactRepo, suite.paymentScheduleService, mockFileStorageService)
+	suite.debtService = services.NewDebtService(suite.debtListRepo, suite.debtItemRepo, suite.contactRepo, suite.paymentScheduleService, mockFileStorageService, nil)
 	
 	authService, err := services.NewAuthService(suite.userRepo, suite.contactService, "test-secret", "24h")
 	suite.Require().NoError(err)

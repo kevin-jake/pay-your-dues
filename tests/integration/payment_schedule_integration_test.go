@@ -40,6 +40,7 @@ func (suite *PaymentScheduleIntegrationTestSuite) SetupTest() {
 		suite.contactRepo,
 		suite.paymentScheduleService,
 		suite.fileStorageService,
+		nil,
 	)
 }
 

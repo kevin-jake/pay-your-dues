@@ -41,6 +41,7 @@ func TestPaymentVerificationWorkflow(t *testing.T) {
 			mockContactRepo,
 			mockPaymentScheduleService,
 			mockFileStorageService,
+			nil,
 		)
 
 		// Test data
@@ -250,6 +251,7 @@ func TestPaymentVerificationWorkflow(t *testing.T) {
 			mockContactRepo,
 			mockPaymentScheduleService,
 			mockFileStorageService,
+			nil,
 		)
 
 		creditorID := uuid.New()
@@ -327,6 +329,7 @@ func TestPaymentVerificationWorkflow(t *testing.T) {
 			mockContactRepo,
 			mockPaymentScheduleService,
 			mockFileStorageService,
+			nil,
 		)
 
 		creditorID := uuid.New()
@@ -400,6 +403,7 @@ func TestPaymentVerificationWorkflow(t *testing.T) {
 			mockContactRepo,
 			mockPaymentScheduleService,
 			mockFileStorageService,
+			nil,
 		)
 
 		unauthorizedUserID := uuid.New()

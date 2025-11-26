@@ -63,4 +63,6 @@ type CreateNotificationRequest struct {
 	Message              string     `json:"message" binding:"required"`
 	RecipientEmail       *string    `json:"recipient_email,omitempty"`
 	RecipientPhone       *string    `json:"recipient_phone,omitempty"`
+	ScheduledFor         *time.Time `json:"scheduled_for,omitempty"` // For manual testing
+	ScheduleType         string     `json:"schedule_type,omitempty"` // 'reminder', 'overdue', 'manual', 'event'
 } 

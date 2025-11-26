@@ -180,7 +180,7 @@ func TestDebtService_CreateDebtList(t *testing.T) {
 
 			// Create service
 			fileStorageService := &mocks.MockFileStorageService{}
-			debtService := services.NewDebtService(debtListRepo, debtItemRepo, contactRepo, paymentService, fileStorageService)
+			debtService := services.NewDebtService(debtListRepo, debtItemRepo, contactRepo, paymentService, fileStorageService, nil)
 
 			// Execute
 			ctx := context.Background()
@@ -388,7 +388,7 @@ func TestDebtService_CreateDebtItem(t *testing.T) {
 
 			// Create service
 			fileStorageService := &mocks.MockFileStorageService{}
-			debtService := services.NewDebtService(debtListRepo, debtItemRepo, contactRepo, paymentService, fileStorageService)
+			debtService := services.NewDebtService(debtListRepo, debtItemRepo, contactRepo, paymentService, fileStorageService, nil)
 
 			// Execute
 			ctx := context.Background()
@@ -478,7 +478,7 @@ func TestDebtService_GetOverdueItems(t *testing.T) {
 
 			// Create service
 			fileStorageService := &mocks.MockFileStorageService{}
-			debtService := services.NewDebtService(debtListRepo, debtItemRepo, contactRepo, paymentService, fileStorageService)
+			debtService := services.NewDebtService(debtListRepo, debtItemRepo, contactRepo, paymentService, fileStorageService, nil)
 
 			// Execute
 			ctx := context.Background()

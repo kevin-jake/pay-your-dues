@@ -19,6 +19,7 @@ import (
 	"pay-your-dues/internal/middleware"
 	"pay-your-dues/internal/repository"
 	"pay-your-dues/internal/services"
+	"pay-your-dues/internal/workers"
 )
 
 func main() {
@@ -66,6 +67,8 @@ func main() {
 	contactRepo := repository.NewContactRepositoryGORM(db.DB)
 	debtListRepo := repository.NewDebtListRepositoryGORM(db.DB, contactRepo)
 	debtItemRepo := repository.NewDebtItemRepositoryGORM(db.DB)
+	notificationRepo := repository.NewNotificationRepositoryGORM(db.DB)
+	notificationTemplateRepo := repository.NewNotificationTemplateRepositoryGORM(db.DB)
 
 	// Initialize services with dependency injection
 	paymentScheduleService := services.NewPaymentScheduleService()
@@ -77,7 +80,32 @@ func main() {
 		logger.Fatal().Err(err).Msg("Failed to initialize S3 service")
 	}
 	
-	debtService := services.NewDebtService(debtListRepo, debtItemRepo, contactRepo, paymentScheduleService, s3Service)
+	// Initialize notification service (Phase 4)
+	notificationConfig := config.LoadNotificationConfig()
+	notificationService := services.NewNotificationService(
+		notificationRepo,
+		notificationTemplateRepo,
+		debtListRepo,
+		debtItemRepo,
+		contactRepo,
+		userRepo,
+		db.DB,
+		notificationConfig,
+		logger,
+	)
+	
+	// Initialize notification worker (Phase 5)
+	notificationWorker := workers.NewNotificationWorker(
+		notificationRepo,
+		debtListRepo,
+		contactRepo,
+		userRepo,
+		db.DB,
+		notificationConfig,
+		logger,
+	)
+	
+	debtService := services.NewDebtService(debtListRepo, debtItemRepo, contactRepo, paymentScheduleService, s3Service, notificationService)
 
 	// Initialize auth service with all dependencies
 	authService, err := services.NewAuthService(userRepo, contactService, cfg.JWTSecret, cfg.JWTExpiry)
@@ -89,6 +117,7 @@ func main() {
 	authHandler := handlers.NewAuthHandler(authService, logger)
 	contactHandler := handlers.NewContactHandler(contactService, logger)
 	debtHandler := handlers.NewDebtHandler(debtService, s3Service, logger)
+	notificationHandler := handlers.NewNotificationHandler(notificationService, logger)
 
 	// Initialize middleware
 	authMiddleware := middleware.NewAuthMiddleware(authService, logger)
@@ -162,12 +191,12 @@ func main() {
 				debts.PUT("/:id", debtHandler.UpdateDebtList)
 				debts.DELETE("/:id", debtHandler.DeleteDebtList)
 
-			// Debt item (payment) operations
-			debts.POST("/payments", debtHandler.CreateDebtItem)
-			debts.GET("/:id/payments", debtHandler.GetDebtListItems)
-			debts.DELETE("/payments/:id", debtHandler.DeleteDebtItem)
+				// Debt item (payment) operations
+				debts.POST("/payments", debtHandler.CreateDebtItem)
+				debts.GET("/:id/payments", debtHandler.GetDebtListItems)
+				debts.DELETE("/payments/:id", debtHandler.DeleteDebtItem)
 
-			// Payment verification operations
+				// Payment verification operations
 				debts.GET("/verifications/pending", debtHandler.GetPendingVerifications)
 				debts.POST("/payments/:id/verify", debtHandler.VerifyDebtItem)
 				debts.POST("/payments/:id/reject", debtHandler.RejectDebtItem)
@@ -181,6 +210,23 @@ func main() {
 				debts.GET("/due-soon", debtHandler.GetDueSoonItems)
 				debts.GET("/:id/schedule", debtHandler.GetPaymentSchedule)
 				debts.GET("/:id/summary", debtHandler.GetTotalPaymentsForDebtList)
+			}
+
+			// Notification routes (Phase 4)
+			notifications := protected.Group("/notifications")
+			{
+				notifications.POST("", notificationHandler.CreateNotification)
+				notifications.GET("/:id", notificationHandler.GetNotification)
+				notifications.DELETE("/:id", notificationHandler.DeleteNotification)
+				notifications.POST("/:id/enable", notificationHandler.EnableNotification)
+				notifications.POST("/:id/disable", notificationHandler.DisableNotification)
+				
+				// Debt list notification operations
+				notifications.POST("/schedule", notificationHandler.ScheduleNotifications)
+				notifications.GET("/debt-lists/:debt_list_id", notificationHandler.GetNotificationsByDebtList)
+				
+				// Manual notification sending
+				notifications.POST("/send", notificationHandler.SendManualNotification)
 			}
 
 			// Additional analytics routes
@@ -197,6 +243,15 @@ func main() {
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  120 * time.Second,
 	}
+
+	// Start notification worker (Phase 5)
+	notificationWorker.Start()
+	logger.Info().Msg("Notification worker started")
+	defer func() {
+		logger.Info().Msg("Stopping notification worker...")
+		notificationWorker.Stop()
+		logger.Info().Msg("Notification worker stopped")
+	}()
 
 	// Start server in a goroutine
 	go func() {
