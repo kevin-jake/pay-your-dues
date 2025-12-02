@@ -28,6 +28,7 @@ type NotificationWorker struct {
 	templateEngine *notification.TemplateEngine
 	contactFetcher *notification.ContactFetcher
 
+	db     *gorm.DB
 	config *config.NotificationConfig
 	logger zerolog.Logger
 
@@ -61,6 +62,7 @@ func NewNotificationWorker(
 		webhookService:   webhookService,
 		templateEngine:   templateEngine,
 		contactFetcher:   contactFetcher,
+		db:               db,
 		config:           cfg,
 		logger:           logger,
 		stopChan:         make(chan struct{}),
@@ -341,20 +343,43 @@ func (w *NotificationWorker) sendWebhookNotification(
 		return fmt.Errorf("webhook type not specified")
 	}
 
+	// Check if webhook is configured before attempting to send
+	if !w.webhookService.IsWebhookConfigured(*notif.WebhookType, userSettings) {
+		return fmt.Errorf("%s webhook not configured. Please configure %s credentials in user settings", *notif.WebhookType, *notif.WebhookType)
+	}
+
 	return w.webhookService.SendNotification(*notif.WebhookType, userSettings, data)
 }
 
-// getUserSettings gets user settings or returns defaults
+// getUserSettings gets user settings from database or returns defaults
 func (w *NotificationWorker) getUserSettings(userID uuid.UUID) (*models.UserSettings, error) {
-	// TODO: Get from database
-	// For now, return default settings
-	return &models.UserSettings{
-		UserID:                   userID,
-		NotificationEmail:        true,
-		NotificationSMS:          false,
-		NotificationWebhook:      false,
-		NotificationReminderDays: []int64{7, 3, 1},
-		NotificationTime:         "09:00:00",
-	}, nil
+	var settings models.UserSettings
+	
+	// Try to fetch from database
+	err := w.db.Where("user_id = ?", userID).First(&settings).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			// Return default settings if not found
+			w.logger.Debug().
+				Str("user_id", userID.String()).
+				Msg("User settings not found, using defaults")
+			return &models.UserSettings{
+				UserID:                   userID,
+				NotificationEmail:        true,
+				NotificationSMS:          false,
+				NotificationWebhook:      false,
+				NotificationReminderDays: []int64{7, 3, 1},
+				NotificationTime:         "09:00:00",
+				OverdueReminderFrequency: "daily",
+				EventNotificationsEnabled: true,
+				NotifyContactOnPayment:    true,
+				DefaultCurrency:           "Php",
+				Timezone:                  "UTC",
+			}, nil
+		}
+		return nil, fmt.Errorf("failed to fetch user settings: %w", err)
+	}
+
+	return &settings, nil
 }
 

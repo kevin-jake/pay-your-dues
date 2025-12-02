@@ -16,16 +16,18 @@ import (
 
 // authService implements the AuthService interface
 type authService struct {
-	userRepo         interfaces.UserRepository
-	contactService   interfaces.ContactService
-	jwtSecret        string
-	jwtExpiry        time.Duration
+	userRepo          interfaces.UserRepository
+	contactService    interfaces.ContactService
+	userSettingsService interfaces.UserSettingsService
+	jwtSecret         string
+	jwtExpiry         time.Duration
 }
 
 // NewAuthService creates a new auth service
 func NewAuthService(
 	userRepo interfaces.UserRepository,
 	contactService interfaces.ContactService,
+	userSettingsService interfaces.UserSettingsService,
 	jwtSecret string,
 	jwtExpiry string,
 ) (interfaces.AuthService, error) {
@@ -35,10 +37,11 @@ func NewAuthService(
 	}
 
 	return &authService{
-		userRepo:       userRepo,
-		contactService: contactService,
-		jwtSecret:      jwtSecret,
-		jwtExpiry:      duration,
+		userRepo:            userRepo,
+		contactService:      contactService,
+		userSettingsService: userSettingsService,
+		jwtSecret:           jwtSecret,
+		jwtExpiry:           duration,
 	}, nil
 }
 
@@ -105,6 +108,17 @@ func (s *authService) Register(ctx context.Context, req *entities.CreateUserRequ
 			Str("user_id", user.ID.String()).
 			Str("user_email", user.Email).
 			Msg("Failed to create contacts for new user during registration")
+	}
+
+	// Create default user settings for the new user
+	if _, err := s.userSettingsService.GetOrCreateUserSettings(ctx, user.ID); err != nil {
+		// Log the error but don't fail registration
+		logger := zerolog.Ctx(ctx)
+		logger.Warn().
+			Err(err).
+			Str("user_id", user.ID.String()).
+			Str("user_email", user.Email).
+			Msg("Failed to create default user settings during registration")
 	}
 
 	return &entities.RegisterResponse{

@@ -69,6 +69,7 @@ func main() {
 	debtItemRepo := repository.NewDebtItemRepositoryGORM(db.DB)
 	notificationRepo := repository.NewNotificationRepositoryGORM(db.DB)
 	notificationTemplateRepo := repository.NewNotificationTemplateRepositoryGORM(db.DB)
+	userSettingsRepo := repository.NewUserSettingsRepositoryGORM(db.DB)
 
 	// Initialize services with dependency injection
 	paymentScheduleService := services.NewPaymentScheduleService()
@@ -107,8 +108,11 @@ func main() {
 	
 	debtService := services.NewDebtService(debtListRepo, debtItemRepo, contactRepo, paymentScheduleService, s3Service, notificationService)
 
+	// Initialize user settings service
+	userSettingsService := services.NewUserSettingsService(userSettingsRepo, userRepo, logger)
+
 	// Initialize auth service with all dependencies
-	authService, err := services.NewAuthService(userRepo, contactService, cfg.JWTSecret, cfg.JWTExpiry)
+	authService, err := services.NewAuthService(userRepo, contactService, userSettingsService, cfg.JWTSecret, cfg.JWTExpiry)
 	if err != nil {
 		logger.Fatal().Err(err).Msg("Failed to initialize auth service")
 	}
@@ -118,6 +122,7 @@ func main() {
 	contactHandler := handlers.NewContactHandler(contactService, logger)
 	debtHandler := handlers.NewDebtHandler(debtService, s3Service, logger)
 	notificationHandler := handlers.NewNotificationHandler(notificationService, logger)
+	userSettingsHandler := handlers.NewUserSettingsHandler(userSettingsService, logger)
 
 	// Initialize middleware
 	authMiddleware := middleware.NewAuthMiddleware(authService, logger)
@@ -227,6 +232,13 @@ func main() {
 				
 				// Manual notification sending
 				notifications.POST("/send", notificationHandler.SendManualNotification)
+			}
+
+			// User settings routes
+			settings := protected.Group("/settings")
+			{
+				settings.GET("", userSettingsHandler.GetUserSettings)
+				settings.PUT("", userSettingsHandler.UpdateUserSettings)
 			}
 
 			// Additional analytics routes
