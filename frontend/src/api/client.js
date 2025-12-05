@@ -92,6 +92,20 @@ class ApiClient {
     return this.request('/health')
   }
 
+  // User Settings methods
+  async getUserSettings() {
+    return this.request('/settings', {
+      method: 'GET',
+    })
+  }
+
+  async updateUserSettings(settings) {
+    return this.request('/settings', {
+      method: 'PUT',
+      body: JSON.stringify(settings),
+    })
+  }
+
   // Contact Management methods
   async createContact(contactData) {
     const response = await this.request('/contacts', {
