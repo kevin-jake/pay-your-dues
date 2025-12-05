@@ -94,16 +94,18 @@ class ApiClient {
 
   // User Settings methods
   async getUserSettings() {
-    return this.request('/settings', {
+    const response = await this.request('/settings', {
       method: 'GET',
     })
+    return response
   }
 
   async updateUserSettings(settings) {
-    return this.request('/settings', {
+    const response = await this.request('/settings', {
       method: 'PUT',
       body: JSON.stringify(settings),
     })
+    return response
   }
 
   // Contact Management methods

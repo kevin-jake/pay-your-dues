@@ -55,13 +55,16 @@ export const useUserSettingsStore = create((set, get) => ({
       const backendSettings = await apiClient.getUserSettings()
       const transformedSettings = transformBackendToFrontend(backendSettings)
 
+      // If backend returns null or empty, use defaults (backend should create defaults, but handle gracefully)
+      const finalSettings = transformedSettings || getDefaultSettings()
+
       set({
-        settings: transformedSettings || getDefaultSettings(),
+        settings: finalSettings,
         isLoading: false,
         lastFetched: new Date().toISOString(),
       })
 
-      return transformedSettings
+      return finalSettings
     } catch (error) {
       const errorMessage = error.message || 'Failed to fetch user settings'
 
@@ -70,6 +73,26 @@ export const useUserSettingsStore = create((set, get) => ({
         // Trigger logout flow
         const authStore = useAuthStore.getState()
         authStore.logout()
+        set({
+          error: errorMessage,
+          isLoading: false,
+        })
+        throw error
+      }
+
+      // If settings don't exist (404) or other non-auth errors, use defaults
+      // Backend should create defaults on first access, but handle gracefully
+      if (errorMessage.includes('404') || errorMessage.includes('Not Found')) {
+        console.warn(
+          'User settings not found, using defaults. Backend will create on first update.'
+        )
+        const defaultSettings = getDefaultSettings()
+        set({
+          settings: defaultSettings,
+          isLoading: false,
+          error: null,
+        })
+        return defaultSettings
       }
 
       set({

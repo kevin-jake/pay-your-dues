@@ -9,7 +9,7 @@ const getLocalTimezone = () => {
 }
 
 /**
- * Transforms backend response (PascalCase) to frontend format (camelCase)
+ * Transforms backend response (snake_case) to frontend format (camelCase)
  * @param {Object} backendSettings - Settings object from backend API
  * @returns {Object|null} Transformed settings object or null if input is invalid
  */
@@ -17,31 +17,31 @@ export const transformBackendToFrontend = (backendSettings) => {
   if (!backendSettings) return null
 
   return {
-    id: backendSettings.ID || backendSettings.id || null,
-    userId: backendSettings.UserID || backendSettings.user_id || null,
-    notificationEmail: backendSettings.NotificationEmail ?? true,
-    notificationSms: backendSettings.NotificationSms ?? false,
-    notificationWebhook: backendSettings.NotificationWebhook ?? false,
-    notificationReminderDays: backendSettings.NotificationReminderDays || [7, 3, 1],
-    notificationTime: backendSettings.NotificationTime || '09:00:00',
-    overdueReminderFrequency: backendSettings.OverdueReminderFrequency || 'daily',
-    customEmailMessage: backendSettings.CustomEmailMessage || null,
-    customSmsMessage: backendSettings.CustomSmsMessage || null,
-    slackWebhookUrl: backendSettings.SlackWebhookUrl || null,
-    telegramBotToken: backendSettings.TelegramBotToken || null,
-    telegramChatId: backendSettings.TelegramChatId || null,
-    discordWebhookUrl: backendSettings.DiscordWebhookUrl || null,
-    eventNotificationsEnabled: backendSettings.EventNotificationsEnabled ?? true,
-    notifyContactOnPayment: backendSettings.NotifyContactOnPayment ?? true,
-    defaultCurrency: backendSettings.DefaultCurrency || 'Php',
-    timezone: backendSettings.Timezone || getLocalTimezone(),
-    createdAt: backendSettings.CreatedAt || backendSettings.created_at || null,
-    updatedAt: backendSettings.UpdatedAt || backendSettings.updated_at || null,
+    id: backendSettings.id || null,
+    userId: backendSettings.user_id || null,
+    notificationEmail: backendSettings.notification_email ?? true,
+    notificationSms: backendSettings.notification_sms ?? false,
+    notificationWebhook: backendSettings.notification_webhook ?? false,
+    notificationReminderDays: backendSettings.notification_reminder_days || [7, 3, 1],
+    notificationTime: backendSettings.notification_time || '09:00:00',
+    overdueReminderFrequency: backendSettings.overdue_reminder_frequency || 'daily',
+    customEmailMessage: backendSettings.custom_email_message || null,
+    customSmsMessage: backendSettings.custom_sms_message || null,
+    slackWebhookUrl: backendSettings.slack_webhook_url || null,
+    telegramBotToken: backendSettings.telegram_bot_token || null,
+    telegramChatId: backendSettings.telegram_chat_id || null,
+    discordWebhookUrl: backendSettings.discord_webhook_url || null,
+    eventNotificationsEnabled: backendSettings.event_notifications_enabled ?? true,
+    notifyContactOnPayment: backendSettings.notify_contact_on_payment ?? true,
+    defaultCurrency: backendSettings.default_currency || 'Php',
+    timezone: backendSettings.timezone || getLocalTimezone(),
+    createdAt: backendSettings.created_at || null,
+    updatedAt: backendSettings.updated_at || null,
   }
 }
 
 /**
- * Transforms frontend format (camelCase) to backend request format (PascalCase)
+ * Transforms frontend format (camelCase) to backend request format (snake_case)
  * @param {Object} frontendSettings - Settings object in frontend format
  * @returns {Object} Transformed settings object for backend API
  */
@@ -52,52 +52,52 @@ export const transformFrontendToBackend = (frontendSettings) => {
   const transformed = {}
 
   if (frontendSettings.notificationEmail !== undefined) {
-    transformed.NotificationEmail = frontendSettings.notificationEmail
+    transformed.notification_email = frontendSettings.notificationEmail
   }
   if (frontendSettings.notificationSms !== undefined) {
-    transformed.NotificationSms = frontendSettings.notificationSms
+    transformed.notification_sms = frontendSettings.notificationSms
   }
   if (frontendSettings.notificationWebhook !== undefined) {
-    transformed.NotificationWebhook = frontendSettings.notificationWebhook
+    transformed.notification_webhook = frontendSettings.notificationWebhook
   }
   if (frontendSettings.notificationReminderDays !== undefined) {
-    transformed.NotificationReminderDays = frontendSettings.notificationReminderDays
+    transformed.notification_reminder_days = frontendSettings.notificationReminderDays
   }
   if (frontendSettings.notificationTime !== undefined) {
-    transformed.NotificationTime = frontendSettings.notificationTime
+    transformed.notification_time = frontendSettings.notificationTime
   }
   if (frontendSettings.overdueReminderFrequency !== undefined) {
-    transformed.OverdueReminderFrequency = frontendSettings.overdueReminderFrequency
+    transformed.overdue_reminder_frequency = frontendSettings.overdueReminderFrequency
   }
   if (frontendSettings.customEmailMessage !== undefined) {
-    transformed.CustomEmailMessage = frontendSettings.customEmailMessage
+    transformed.custom_email_message = frontendSettings.customEmailMessage
   }
   if (frontendSettings.customSmsMessage !== undefined) {
-    transformed.CustomSmsMessage = frontendSettings.customSmsMessage
+    transformed.custom_sms_message = frontendSettings.customSmsMessage
   }
   if (frontendSettings.slackWebhookUrl !== undefined) {
-    transformed.SlackWebhookUrl = frontendSettings.slackWebhookUrl
+    transformed.slack_webhook_url = frontendSettings.slackWebhookUrl
   }
   if (frontendSettings.telegramBotToken !== undefined) {
-    transformed.TelegramBotToken = frontendSettings.telegramBotToken
+    transformed.telegram_bot_token = frontendSettings.telegramBotToken
   }
   if (frontendSettings.telegramChatId !== undefined) {
-    transformed.TelegramChatId = frontendSettings.telegramChatId
+    transformed.telegram_chat_id = frontendSettings.telegramChatId
   }
   if (frontendSettings.discordWebhookUrl !== undefined) {
-    transformed.DiscordWebhookUrl = frontendSettings.discordWebhookUrl
+    transformed.discord_webhook_url = frontendSettings.discordWebhookUrl
   }
   if (frontendSettings.eventNotificationsEnabled !== undefined) {
-    transformed.EventNotificationsEnabled = frontendSettings.eventNotificationsEnabled
+    transformed.event_notifications_enabled = frontendSettings.eventNotificationsEnabled
   }
   if (frontendSettings.notifyContactOnPayment !== undefined) {
-    transformed.NotifyContactOnPayment = frontendSettings.notifyContactOnPayment
+    transformed.notify_contact_on_payment = frontendSettings.notifyContactOnPayment
   }
   if (frontendSettings.defaultCurrency !== undefined) {
-    transformed.DefaultCurrency = frontendSettings.defaultCurrency
+    transformed.default_currency = frontendSettings.defaultCurrency
   }
   if (frontendSettings.timezone !== undefined) {
-    transformed.Timezone = frontendSettings.timezone
+    transformed.timezone = frontendSettings.timezone
   }
 
   return transformed
@@ -118,13 +118,13 @@ export const mapNotificationPreferences = (backendSettings) => {
     }
   }
 
-  // Handle both backend format (PascalCase) and frontend format (camelCase)
+  // Handle both backend format (snake_case) and frontend format (camelCase)
   return {
-    email: backendSettings.notificationEmail ?? backendSettings.NotificationEmail ?? true,
-    push: backendSettings.notificationWebhook ?? backendSettings.NotificationWebhook ?? false,
+    email: backendSettings.notificationEmail ?? backendSettings.notification_email ?? true,
+    push: backendSettings.notificationWebhook ?? backendSettings.notification_webhook ?? false,
     reminders:
       backendSettings.eventNotificationsEnabled ??
-      backendSettings.EventNotificationsEnabled ??
+      backendSettings.event_notifications_enabled ??
       true,
   }
 }

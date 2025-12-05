@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { apiClient, tokenManager } from '@api/client'
+import { useUserSettingsStore } from './userSettingsStore'
 
 export const useAuthStore = create((set, get) => ({
   // State
@@ -22,6 +23,16 @@ export const useAuthStore = create((set, get) => ({
           isLoading: false,
           user,
         })
+
+        // Fetch user settings if authenticated
+        try {
+          const userSettingsStore = useUserSettingsStore.getState()
+          await userSettingsStore.fetchUserSettings()
+        } catch (error) {
+          // If settings fetch fails, it's not critical - user can still use the app
+          // Backend will create default settings on first access
+          console.warn('Failed to fetch user settings on app init:', error)
+        }
       } catch (error) {
         // Token is invalid, remove it and user data
         console.log('Invalid token, removing from storage')
@@ -55,6 +66,16 @@ export const useAuthStore = create((set, get) => ({
         isAuthenticated: true,
         isLoading: false,
       })
+
+      // Fetch user settings after successful login
+      try {
+        const userSettingsStore = useUserSettingsStore.getState()
+        await userSettingsStore.fetchUserSettings()
+      } catch (error) {
+        // If settings fetch fails, it's not critical - user can still use the app
+        // Backend will create default settings on first access
+        console.warn('Failed to fetch user settings after login:', error)
+      }
 
       return response
     } catch (error) {

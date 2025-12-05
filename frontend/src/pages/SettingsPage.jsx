@@ -3,36 +3,39 @@ import { useSettingsStore } from '@stores/settingsStore'
 import { useThemeStore } from '@stores/themeStore'
 import { useAuthStore } from '@stores/authStore'
 import { useNotificationsStore } from '@stores/notificationsStore'
+import { useUserSettingsStore } from '@stores/userSettingsStore'
+import { GeneralSettings } from '@components/settings/GeneralSettings'
+import { NotificationSettings } from '@components/settings/NotificationSettings'
 
 export const SettingsPage = () => {
   const user = useAuthStore((state) => state.user)
   const { theme, setTheme } = useThemeStore()
+  const { language, setLanguage, resetSettings } = useSettingsStore()
+  const { success, error: showError } = useNotificationsStore()
+
+  // User settings from backend
   const {
-    currency,
-    language,
-    notifications,
-    setCurrency,
-    setLanguage,
-    setNotificationSettings,
-    resetSettings,
-  } = useSettingsStore()
-  const { success } = useNotificationsStore()
+    settings: userSettings,
+    isLoading,
+    isSaving,
+    error: settingsError,
+    fetchUserSettings,
+    updateUserSettings,
+    resetError,
+  } = useUserSettingsStore()
 
   const [activeTab, setActiveTab] = useState('general')
-  const [localNotifications, setLocalNotifications] = useState(notifications)
 
+  // Fetch settings on mount
   useEffect(() => {
-    setLocalNotifications(notifications)
-  }, [notifications])
+    fetchUserSettings().catch((err) => {
+      showError(err.message || 'Failed to load settings')
+    })
+  }, [fetchUserSettings, showError])
 
   const handleThemeChange = (newTheme) => {
     setTheme(newTheme)
     success('Theme updated successfully')
-  }
-
-  const handleCurrencyChange = (newCurrency) => {
-    setCurrency(newCurrency)
-    success('Currency updated successfully')
   }
 
   const handleLanguageChange = (newLanguage) => {
@@ -40,11 +43,30 @@ export const SettingsPage = () => {
     success('Language updated successfully')
   }
 
-  const handleNotificationChange = (key, value) => {
-    const updated = { ...localNotifications, [key]: value }
-    setLocalNotifications(updated)
-    setNotificationSettings(updated)
-    success('Notification preferences updated')
+  const handleGeneralSettingsSave = async (changes) => {
+    console.log('handleGeneralSettingsSave called with:', changes)
+    try {
+      console.log('Calling updateUserSettings...')
+      const result = await updateUserSettings(changes)
+      console.log('updateUserSettings result:', result)
+      success('General settings saved successfully')
+    } catch (error) {
+      console.error('Error in handleGeneralSettingsSave:', error)
+      showError(error.message || 'Failed to save general settings')
+    }
+  }
+
+  const handleNotificationSettingsSave = async (changes) => {
+    console.log('handleNotificationSettingsSave called with:', changes)
+    try {
+      console.log('Calling updateUserSettings...')
+      const result = await updateUserSettings(changes)
+      console.log('updateUserSettings result:', result)
+      success('Notification settings saved successfully')
+    } catch (error) {
+      console.error('Error in handleNotificationSettingsSave:', error)
+      showError(error.message || 'Failed to save notification settings')
+    }
   }
 
   const handleResetSettings = () => {
@@ -64,6 +86,33 @@ export const SettingsPage = () => {
           Manage your account preferences and application settings
         </p>
       </div>
+
+      {/* Error Message */}
+      {settingsError && (
+        <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center">
+              <svg
+                className="mr-2 h-5 w-5 text-destructive"
+                fill="none"
+                stroke="currentColor"
+                viewBox="0 0 24 24"
+              >
+                <path
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  strokeWidth="2"
+                  d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                />
+              </svg>
+              <span className="text-sm text-destructive">{settingsError}</span>
+            </div>
+            <button onClick={resetError} className="text-sm text-destructive hover:underline">
+              Dismiss
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="border-b border-border">
@@ -115,57 +164,12 @@ export const SettingsPage = () => {
       <div className="space-y-6">
         {/* General Settings */}
         {activeTab === 'general' && (
-          <div className="space-y-6">
-            <div className="card p-6">
-              <h2 className="mb-4 text-xl font-semibold text-foreground">General Settings</h2>
-
-              {/* Currency */}
-              <div className="mb-6">
-                <label className="mb-2 block text-sm font-medium text-foreground">
-                  Currency
-                </label>
-                <select
-                  value={currency}
-                  onChange={(e) => handleCurrencyChange(e.target.value)}
-                  className="input max-w-xs"
-                >
-                  <option value="USD">USD - US Dollar ($)</option>
-                  <option value="EUR">EUR - Euro (€)</option>
-                  <option value="GBP">GBP - British Pound (£)</option>
-                  <option value="JPY">JPY - Japanese Yen (¥)</option>
-                  <option value="PHP">PHP - Philippine Peso (₱)</option>
-                  <option value="CAD">CAD - Canadian Dollar (C$)</option>
-                  <option value="AUD">AUD - Australian Dollar (A$)</option>
-                  <option value="INR">INR - Indian Rupee (₹)</option>
-                </select>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Select your preferred currency for displaying amounts
-                </p>
-              </div>
-
-              {/* Language */}
-              <div>
-                <label className="mb-2 block text-sm font-medium text-foreground">
-                  Language
-                </label>
-                <select
-                  value={language}
-                  onChange={(e) => handleLanguageChange(e.target.value)}
-                  className="input max-w-xs"
-                >
-                  <option value="en">English</option>
-                  <option value="es">Español</option>
-                  <option value="fr">Français</option>
-                  <option value="de">Deutsch</option>
-                  <option value="ja">日本語</option>
-                  <option value="zh">中文</option>
-                </select>
-                <p className="mt-1 text-sm text-muted-foreground">
-                  Select your preferred language
-                </p>
-              </div>
-            </div>
-          </div>
+          <GeneralSettings
+            userSettings={userSettings}
+            isLoading={isLoading}
+            isSaving={isSaving}
+            onSave={handleGeneralSettingsSave}
+          />
         )}
 
         {/* Appearance Settings */}
@@ -277,87 +281,12 @@ export const SettingsPage = () => {
 
         {/* Notification Settings */}
         {activeTab === 'notifications' && (
-          <div className="space-y-6">
-            <div className="card p-6">
-              <h2 className="mb-4 text-xl font-semibold text-foreground">
-                Notification Preferences
-              </h2>
-
-              <div className="space-y-4">
-                {/* Email Notifications */}
-                <div className="flex items-center justify-between rounded-lg border border-border p-4">
-                  <div className="flex-1">
-                    <div className="font-medium text-foreground">Email Notifications</div>
-                    <div className="text-sm text-muted-foreground">
-                      Receive notifications via email
-                    </div>
-                  </div>
-                  <button
-                    onClick={() =>
-                      handleNotificationChange('email', !localNotifications.email)
-                    }
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      localNotifications.email ? 'bg-primary' : 'bg-muted'
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        localNotifications.email ? 'translate-x-6' : 'translate-x-1'
-                      }`}
-                    />
-                  </button>
-                </div>
-
-                {/* Push Notifications */}
-                <div className="flex items-center justify-between rounded-lg border border-border p-4">
-                  <div className="flex-1">
-                    <div className="font-medium text-foreground">Push Notifications</div>
-                    <div className="text-sm text-muted-foreground">
-                      Receive push notifications in your browser
-                    </div>
-                  </div>
-                  <button
-                    onClick={() =>
-                      handleNotificationChange('push', !localNotifications.push)
-                    }
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      localNotifications.push ? 'bg-primary' : 'bg-muted'
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        localNotifications.push ? 'translate-x-6' : 'translate-x-1'
-                      }`}
-                    />
-                  </button>
-                </div>
-
-                {/* Payment Reminders */}
-                <div className="flex items-center justify-between rounded-lg border border-border p-4">
-                  <div className="flex-1">
-                    <div className="font-medium text-foreground">Payment Reminders</div>
-                    <div className="text-sm text-muted-foreground">
-                      Get reminders for upcoming due dates
-                    </div>
-                  </div>
-                  <button
-                    onClick={() =>
-                      handleNotificationChange('reminders', !localNotifications.reminders)
-                    }
-                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-                      localNotifications.reminders ? 'bg-primary' : 'bg-muted'
-                    }`}
-                  >
-                    <span
-                      className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform ${
-                        localNotifications.reminders ? 'translate-x-6' : 'translate-x-1'
-                      }`}
-                    />
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
+          <NotificationSettings
+            userSettings={userSettings}
+            isLoading={isLoading}
+            isSaving={isSaving}
+            onSave={handleNotificationSettingsSave}
+          />
         )}
 
         {/* Account Settings */}
@@ -401,19 +330,13 @@ export const SettingsPage = () => {
                         Account Created
                       </div>
                       <div className="mt-1 text-foreground">
-                        {user?.created_at
-                          ? new Date(user.created_at).toLocaleDateString()
-                          : 'N/A'}
+                        {user?.created_at ? new Date(user.created_at).toLocaleDateString() : 'N/A'}
                       </div>
                     </div>
                     <div>
-                      <div className="text-sm font-medium text-muted-foreground">
-                        Last Updated
-                      </div>
+                      <div className="text-sm font-medium text-muted-foreground">Last Updated</div>
                       <div className="mt-1 text-foreground">
-                        {user?.updated_at
-                          ? new Date(user.updated_at).toLocaleDateString()
-                          : 'N/A'}
+                        {user?.updated_at ? new Date(user.updated_at).toLocaleDateString() : 'N/A'}
                       </div>
                     </div>
                   </div>
@@ -446,9 +369,7 @@ export const SettingsPage = () => {
                     </div>
                   </div>
                   <button
-                    onClick={() =>
-                      alert('Account deletion functionality will be implemented soon')
-                    }
+                    onClick={() => alert('Account deletion functionality will be implemented soon')}
                     className="btn-destructive"
                   >
                     Delete Account
@@ -462,4 +383,3 @@ export const SettingsPage = () => {
     </div>
   )
 }
-
