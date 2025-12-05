@@ -171,7 +171,7 @@ func TestAuthService_Register(t *testing.T) {
 			tt.setupMocks(userRepo, contactService)
 
 			// Create service
-			authService, err := services.NewAuthService(userRepo, contactService, "test-secret", "24h")
+			authService, err := services.NewAuthService(userRepo, contactService, nil, "test-secret", "24h")
 			assert.NoError(t, err)
 
 			// Execute
@@ -274,7 +274,7 @@ func TestAuthService_Login(t *testing.T) {
 			tt.setupMocks(userRepo)
 
 			// Create service
-			authService, err := services.NewAuthService(userRepo, contactService, "test-secret", "24h")
+			authService, err := services.NewAuthService(userRepo, contactService, nil, "test-secret", "24h")
 			assert.NoError(t, err)
 
 			// Execute
@@ -340,7 +340,7 @@ func TestAuthService_ValidateToken(t *testing.T) {
 			userRepo := &mocks.MockUserRepository{}
 			contactService := &mocks.MockContactService{}
 
-			authService, err := services.NewAuthService(userRepo, contactService, "test-secret", "24h")
+			authService, err := services.NewAuthService(userRepo, contactService, nil, "test-secret", "24h")
 			assert.NoError(t, err)
 
 			token := tt.tokenSetup(authService)

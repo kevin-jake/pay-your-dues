@@ -111,14 +111,16 @@ func (s *authService) Register(ctx context.Context, req *entities.CreateUserRequ
 	}
 
 	// Create default user settings for the new user
-	if _, err := s.userSettingsService.GetOrCreateUserSettings(ctx, user.ID); err != nil {
-		// Log the error but don't fail registration
-		logger := zerolog.Ctx(ctx)
-		logger.Warn().
-			Err(err).
-			Str("user_id", user.ID.String()).
-			Str("user_email", user.Email).
-			Msg("Failed to create default user settings during registration")
+	if s.userSettingsService != nil {
+		if _, err := s.userSettingsService.GetOrCreateUserSettings(ctx, user.ID); err != nil {
+			// Log the error but don't fail registration
+			logger := zerolog.Ctx(ctx)
+			logger.Warn().
+				Err(err).
+				Str("user_id", user.ID.String()).
+				Str("user_email", user.Email).
+				Msg("Failed to create default user settings during registration")
+		}
 	}
 
 	return &entities.RegisterResponse{
