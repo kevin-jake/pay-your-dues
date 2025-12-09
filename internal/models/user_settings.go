@@ -28,8 +28,9 @@ type UserSettings struct {
 	DiscordWebhookURL   *string   `json:"discord_webhook_url"`
 	
 	// Event notification settings
-	EventNotificationsEnabled bool  `json:"event_notifications_enabled" gorm:"default:true"`
-	NotifyContactOnPayment    bool  `json:"notify_contact_on_payment" gorm:"default:true"`
+	EventNotificationsEnabled bool   `json:"event_notifications_enabled" gorm:"default:true"`
+	NotifyContactOnPayment    bool   `json:"notify_contact_on_payment" gorm:"default:true"`
+	NotificationRecipient     string `json:"notification_recipient" gorm:"default:'both'"` // 'user', 'contact', or 'both'
 	
 	DefaultCurrency     string    `json:"default_currency" gorm:"default:'Php'"`
 	Timezone           string    `json:"timezone" gorm:"default:'UTC'"`
@@ -55,6 +56,7 @@ type UpdateUserSettingsRequest struct {
 	DiscordWebhookURL            *string       `json:"discord_webhook_url"`
 	EventNotificationsEnabled    *bool         `json:"event_notifications_enabled"`
 	NotifyContactOnPayment       *bool         `json:"notify_contact_on_payment"`
+	NotificationRecipient        *string       `json:"notification_recipient"` // 'user', 'contact', or 'both'
 	DefaultCurrency              *string       `json:"default_currency"`
 	Timezone                     *string       `json:"timezone"`
 } 

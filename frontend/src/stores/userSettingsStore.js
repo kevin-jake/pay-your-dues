@@ -34,11 +34,54 @@ const getDefaultSettings = () => ({
   discordWebhookUrl: null,
   eventNotificationsEnabled: true,
   notifyContactOnPayment: true,
+  notificationRecipient: 'both', // 'user', 'contact', or 'both'
   defaultCurrency: 'Php',
   timezone: getLocalTimezone(),
   createdAt: null,
   updatedAt: null,
 })
+
+// Error categorization helper
+const categorizeError = (error) => {
+  const errorMessage = error?.message || String(error || 'Unknown error')
+  const errorString = errorMessage.toLowerCase()
+
+  // Check error type
+  if (errorString.includes('401') || errorString.includes('unauthorized')) {
+    return { type: 'unauthorized', message: errorMessage }
+  }
+  if (errorString.includes('403') || errorString.includes('forbidden')) {
+    return { type: 'forbidden', message: errorMessage }
+  }
+  if (errorString.includes('404') || errorString.includes('not found')) {
+    return { type: 'not_found', message: errorMessage }
+  }
+  if (
+    errorString.includes('422') ||
+    errorString.includes('validation') ||
+    errorString.includes('invalid')
+  ) {
+    return { type: 'validation', message: errorMessage, fields: error?.fields || null }
+  }
+  if (
+    errorString.includes('500') ||
+    errorString.includes('server error') ||
+    errorString.includes('internal')
+  ) {
+    return { type: 'server', message: errorMessage }
+  }
+  if (
+    errorString.includes('network') ||
+    errorString.includes('fetch') ||
+    errorString.includes('connection') ||
+    errorString.includes('timeout')
+  ) {
+    return { type: 'network', message: errorMessage }
+  }
+
+  // Default to generic error
+  return { type: 'generic', message: errorMessage }
+}
 
 export const useUserSettingsStore = create((set, get) => ({
   // State
@@ -46,12 +89,14 @@ export const useUserSettingsStore = create((set, get) => ({
   isLoading: false,
   isSaving: false,
   error: null,
+  errorType: null,
+  validationErrors: null,
   lastFetched: null,
 
   // Fetch user settings from backend
   fetchUserSettings: async () => {
     try {
-      set({ isLoading: true, error: null })
+      set({ isLoading: true, error: null, errorType: null, validationErrors: null })
       const backendSettings = await apiClient.getUserSettings()
       const transformedSettings = transformBackendToFrontend(backendSettings)
 
@@ -62,27 +107,31 @@ export const useUserSettingsStore = create((set, get) => ({
         settings: finalSettings,
         isLoading: false,
         lastFetched: new Date().toISOString(),
+        error: null,
+        errorType: null,
+        validationErrors: null,
       })
 
       return finalSettings
     } catch (error) {
-      const errorMessage = error.message || 'Failed to fetch user settings'
+      const categorized = categorizeError(error)
 
       // Check if it's an authentication error
-      if (errorMessage.includes('401') || errorMessage.includes('Unauthorized')) {
+      if (categorized.type === 'unauthorized') {
         // Trigger logout flow
         const authStore = useAuthStore.getState()
         authStore.logout()
         set({
-          error: errorMessage,
+          error: categorized.message,
+          errorType: categorized.type,
           isLoading: false,
         })
         throw error
       }
 
-      // If settings don't exist (404) or other non-auth errors, use defaults
+      // If settings don't exist (404), use defaults
       // Backend should create defaults on first access, but handle gracefully
-      if (errorMessage.includes('404') || errorMessage.includes('Not Found')) {
+      if (categorized.type === 'not_found') {
         console.warn(
           'User settings not found, using defaults. Backend will create on first update.'
         )
@@ -91,12 +140,16 @@ export const useUserSettingsStore = create((set, get) => ({
           settings: defaultSettings,
           isLoading: false,
           error: null,
+          errorType: null,
+          validationErrors: null,
         })
         return defaultSettings
       }
 
       set({
-        error: errorMessage,
+        error: categorized.message,
+        errorType: categorized.type,
+        validationErrors: categorized.fields || null,
         isLoading: false,
       })
       throw error
@@ -106,7 +159,7 @@ export const useUserSettingsStore = create((set, get) => ({
   // Update user settings on backend
   updateUserSettings: async (updates) => {
     try {
-      set({ isSaving: true, error: null })
+      set({ isSaving: true, error: null, errorType: null, validationErrors: null })
 
       // Transform frontend format to backend format
       const backendUpdates = transformFrontendToBackend(updates)
@@ -122,21 +175,26 @@ export const useUserSettingsStore = create((set, get) => ({
         settings: transformedSettings || state.settings,
         isSaving: false,
         lastFetched: new Date().toISOString(),
+        error: null,
+        errorType: null,
+        validationErrors: null,
       }))
 
       return transformedSettings
     } catch (error) {
-      const errorMessage = error.message || 'Failed to update user settings'
+      const categorized = categorizeError(error)
 
       // Check if it's an authentication error
-      if (errorMessage.includes('401') || errorMessage.includes('Unauthorized')) {
+      if (categorized.type === 'unauthorized') {
         // Trigger logout flow
         const authStore = useAuthStore.getState()
         authStore.logout()
       }
 
       set({
-        error: errorMessage,
+        error: categorized.message,
+        errorType: categorized.type,
+        validationErrors: categorized.fields || null,
         isSaving: false,
       })
       throw error
@@ -161,6 +219,6 @@ export const useUserSettingsStore = create((set, get) => ({
 
   // Reset error state
   resetError: () => {
-    set({ error: null })
+    set({ error: null, errorType: null, validationErrors: null })
   },
 }))

@@ -2,7 +2,13 @@ import { useState, useEffect } from 'react'
 import { useSettingsStore } from '@stores/settingsStore'
 import { LoadingSpinner } from '@components/common/LoadingSpinner'
 
-export const GeneralSettings = ({ userSettings, isLoading, isSaving, onSave }) => {
+export const GeneralSettings = ({
+  userSettings,
+  isLoading,
+  isSaving,
+  validationErrors,
+  onSave,
+}) => {
   const { language, setLanguage } = useSettingsStore()
 
   // Local state for pending changes
@@ -46,26 +52,16 @@ export const GeneralSettings = ({ userSettings, isLoading, isSaving, onSave }) =
     e?.preventDefault()
     e?.stopPropagation()
 
-    console.log('Save button clicked')
-    console.log('hasChanges():', hasChanges())
-    console.log('pendingChanges:', pendingChanges)
-    console.log('userSettings:', userSettings)
-
     if (!hasChanges()) {
-      console.warn('No changes detected, save aborted')
       return
     }
 
-    console.log('Saving general settings:', pendingChanges)
     if (onSave) {
       try {
         await onSave(pendingChanges)
-        console.log('Save completed successfully')
       } catch (error) {
-        console.error('Save failed:', error)
+        // Error is handled by parent component
       }
-    } else {
-      console.error('onSave handler is not provided')
     }
   }
 
@@ -106,7 +102,9 @@ export const GeneralSettings = ({ userSettings, isLoading, isSaving, onSave }) =
           }
           onChange={(e) => handleCurrencyChange(e.target.value)}
           disabled={isSaving}
-          className="input max-w-xs disabled:cursor-not-allowed disabled:opacity-50"
+          className={`input max-w-xs disabled:cursor-not-allowed disabled:opacity-50 ${
+            validationErrors?.default_currency ? 'border-destructive' : ''
+          }`}
         >
           <option value="USD">USD - US Dollar ($)</option>
           <option value="EUR">EUR - Euro (€)</option>
@@ -117,6 +115,9 @@ export const GeneralSettings = ({ userSettings, isLoading, isSaving, onSave }) =
           <option value="AUD">AUD - Australian Dollar (A$)</option>
           <option value="INR">INR - Indian Rupee (₹)</option>
         </select>
+        {validationErrors?.default_currency && (
+          <p className="mt-1 text-sm text-destructive">{validationErrors.default_currency}</p>
+        )}
         <p className="mt-1 text-sm text-muted-foreground">
           Select your preferred currency for displaying amounts
         </p>
@@ -148,7 +149,9 @@ export const GeneralSettings = ({ userSettings, isLoading, isSaving, onSave }) =
           value={pendingChanges.timezone}
           onChange={(e) => handleTimezoneChange(e.target.value)}
           disabled={isSaving}
-          className="input max-w-xs disabled:cursor-not-allowed disabled:opacity-50"
+          className={`input max-w-xs disabled:cursor-not-allowed disabled:opacity-50 ${
+            validationErrors?.timezone ? 'border-destructive' : ''
+          }`}
         >
           <option value="UTC">UTC</option>
           <option value="America/New_York">Eastern Time (ET)</option>
@@ -163,6 +166,9 @@ export const GeneralSettings = ({ userSettings, isLoading, isSaving, onSave }) =
           <option value="Australia/Sydney">Sydney (AEST)</option>
           <option value="America/Sao_Paulo">São Paulo (BRT)</option>
         </select>
+        {validationErrors?.timezone && (
+          <p className="mt-1 text-sm text-destructive">{validationErrors.timezone}</p>
+        )}
         <p className="mt-1 text-sm text-muted-foreground">
           Select your timezone for notifications and reminders
         </p>

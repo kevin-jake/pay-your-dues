@@ -33,6 +33,7 @@ export const transformBackendToFrontend = (backendSettings) => {
     discordWebhookUrl: backendSettings.discord_webhook_url || null,
     eventNotificationsEnabled: backendSettings.event_notifications_enabled ?? true,
     notifyContactOnPayment: backendSettings.notify_contact_on_payment ?? true,
+    notificationRecipient: backendSettings.notification_recipient || 'both', // 'user', 'contact', or 'both'
     defaultCurrency: backendSettings.default_currency || 'Php',
     timezone: backendSettings.timezone || getLocalTimezone(),
     createdAt: backendSettings.created_at || null,
@@ -93,6 +94,9 @@ export const transformFrontendToBackend = (frontendSettings) => {
   if (frontendSettings.notifyContactOnPayment !== undefined) {
     transformed.notify_contact_on_payment = frontendSettings.notifyContactOnPayment
   }
+  if (frontendSettings.notificationRecipient !== undefined) {
+    transformed.notification_recipient = frontendSettings.notificationRecipient
+  }
   if (frontendSettings.defaultCurrency !== undefined) {
     transformed.default_currency = frontendSettings.defaultCurrency
   }
@@ -128,4 +132,3 @@ export const mapNotificationPreferences = (backendSettings) => {
       true,
   }
 }
-

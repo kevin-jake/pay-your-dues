@@ -76,10 +76,10 @@ func (t *TelegramSender) formatPaymentReminder(data TemplateData) string {
 	message += fmt.Sprintf("Payment due to *%s*\n\n", data.ContactName)
 	message += fmt.Sprintf("*Amount:* %s %s\n", data.Currency, data.Amount)
 	message += fmt.Sprintf("*Due Date:* %s\n", data.DueDate)
-	message += fmt.Sprintf("*Days Until Due:* %s days\n", data.DaysUntilDue)
+	message += fmt.Sprintf("*Days Until Due:* %d days\n", data.DaysUntilDue)
 
 	if data.InstallmentNumber > 0 && data.InstallmentTotal > 0 {
-		message += fmt.Sprintf("\n*Installment:* #%s of %s\n", data.InstallmentNumber, data.InstallmentTotal)
+		message += fmt.Sprintf("\n*Installment:* #%d of %d\n", data.InstallmentNumber, data.InstallmentTotal)
 		message += fmt.Sprintf("*Remaining Debt:* %s %s\n", data.Currency, data.RemainingDebt)
 	}
 

@@ -5,7 +5,13 @@ import { NotificationToggle } from './NotificationToggle'
 import { WebhookConfiguration } from './WebhookConfiguration'
 import { NotificationSchedule } from './NotificationSchedule'
 
-export const NotificationSettings = ({ userSettings, isLoading, isSaving, onSave }) => {
+export const NotificationSettings = ({
+  userSettings,
+  isLoading,
+  isSaving,
+  validationErrors,
+  onSave,
+}) => {
   // Map backend settings to frontend notification format for UI
   const notifications = mapNotificationPreferences(userSettings)
   const [localNotifications, setLocalNotifications] = useState(notifications)
@@ -17,6 +23,7 @@ export const NotificationSettings = ({ userSettings, isLoading, isSaving, onSave
     notificationWebhook: userSettings?.notificationWebhook ?? false,
     eventNotificationsEnabled: userSettings?.eventNotificationsEnabled ?? true,
     notifyContactOnPayment: userSettings?.notifyContactOnPayment ?? true,
+    notificationRecipient: userSettings?.notificationRecipient || 'both',
     slackWebhookUrl: userSettings?.slackWebhookUrl || '',
     telegramBotToken: userSettings?.telegramBotToken || '',
     telegramChatId: userSettings?.telegramChatId || '',
@@ -40,6 +47,7 @@ export const NotificationSettings = ({ userSettings, isLoading, isSaving, onSave
         notificationWebhook: userSettings.notificationWebhook ?? false,
         eventNotificationsEnabled: userSettings.eventNotificationsEnabled ?? true,
         notifyContactOnPayment: userSettings.notifyContactOnPayment ?? true,
+        notificationRecipient: userSettings.notificationRecipient || 'both',
         slackWebhookUrl: userSettings.slackWebhookUrl || '',
         telegramBotToken: userSettings.telegramBotToken || '',
         telegramChatId: userSettings.telegramChatId || '',
@@ -60,8 +68,6 @@ export const NotificationSettings = ({ userSettings, isLoading, isSaving, onSave
     // Map to backend fields
     if (key === 'email') {
       setPendingChanges((prev) => ({ ...prev, notificationEmail: value }))
-    } else if (key === 'push') {
-      setPendingChanges((prev) => ({ ...prev, notificationWebhook: value }))
     } else if (key === 'reminders') {
       setPendingChanges((prev) => ({ ...prev, eventNotificationsEnabled: value }))
     }
@@ -77,6 +83,10 @@ export const NotificationSettings = ({ userSettings, isLoading, isSaving, onSave
 
   const handleNotifyContactToggle = (value) => {
     setPendingChanges((prev) => ({ ...prev, notifyContactOnPayment: value }))
+  }
+
+  const handleWebhookToggle = (value) => {
+    setPendingChanges((prev) => ({ ...prev, notificationWebhook: value }))
   }
 
   const handleWebhookInputChange = (field, value) => {
@@ -96,6 +106,7 @@ export const NotificationSettings = ({ userSettings, isLoading, isSaving, onSave
       pendingChanges.eventNotificationsEnabled !==
         (userSettings.eventNotificationsEnabled ?? true) ||
       pendingChanges.notifyContactOnPayment !== (userSettings.notifyContactOnPayment ?? true) ||
+      pendingChanges.notificationRecipient !== (userSettings.notificationRecipient || 'both') ||
       pendingChanges.slackWebhookUrl !== (userSettings.slackWebhookUrl || '') ||
       pendingChanges.telegramBotToken !== (userSettings.telegramBotToken || '') ||
       pendingChanges.telegramChatId !== (userSettings.telegramChatId || '') ||
@@ -114,26 +125,16 @@ export const NotificationSettings = ({ userSettings, isLoading, isSaving, onSave
     e?.preventDefault()
     e?.stopPropagation()
 
-    console.log('Save button clicked')
-    console.log('hasChanges():', hasChanges())
-    console.log('pendingChanges:', pendingChanges)
-    console.log('userSettings:', userSettings)
-
     if (!hasChanges()) {
-      console.warn('No changes detected, save aborted')
       return
     }
 
-    console.log('Saving notification settings:', pendingChanges)
     if (onSave) {
       try {
         await onSave(pendingChanges)
-        console.log('Save completed successfully')
       } catch (error) {
-        console.error('Save failed:', error)
+        // Error is handled by parent component
       }
-    } else {
-      console.error('onSave handler is not provided')
     }
   }
 
@@ -199,56 +200,48 @@ export const NotificationSettings = ({ userSettings, isLoading, isSaving, onSave
 
       <div className="space-y-4">
         {/* Email Notifications */}
-        <div className="rounded-lg border border-border">
-          <div className="p-4">
-            <NotificationToggle
-              label="Email Notifications"
-              description="Receive notifications via email"
-              enabled={localNotifications.email}
-              onChange={(value) => handleNotificationChange('email', value)}
-              disabled={isSaving}
-            />
-          </div>
-          {localNotifications.email && (
-            <div className="border-t border-border p-4">
-              <label className="mb-2 block text-sm font-medium text-foreground">
-                Custom Email Message Template
-              </label>
-              <textarea
-                value={pendingChanges.customEmailMessage}
-                onChange={(e) => handleAdvancedInputChange('customEmailMessage', e.target.value)}
-                placeholder="Enter custom email message template..."
-                rows={4}
-                disabled={isSaving}
-                className="input disabled:cursor-not-allowed disabled:opacity-50"
-              />
-              <p className="mt-1 text-xs text-muted-foreground">
-                Custom message template for email notifications (optional)
-              </p>
-            </div>
-          )}
-        </div>
-
-        {/* Push Notifications */}
         <NotificationToggle
-          label="Push Notifications"
-          description="Receive push notifications in your browser"
-          enabled={localNotifications.push}
-          onChange={(value) => handleNotificationChange('push', value)}
+          label="Email Notifications"
+          description="Receive notifications via email"
+          enabled={localNotifications.email}
+          onChange={(value) => handleNotificationChange('email', value)}
           disabled={isSaving}
         />
-
-        {/* SMS Notifications */}
-        <div className="rounded-lg border border-border">
-          <div className="p-4">
-            <NotificationToggle
-              label="SMS Notifications"
-              description="Receive notifications via SMS (requires SMS provider configuration)"
-              enabled={pendingChanges.notificationSms}
-              onChange={handleSmsToggle}
+        {localNotifications.email && (
+          <div className="border-t border-border p-4">
+            <label className="mb-2 block text-sm font-medium text-foreground">
+              Custom Email Message Template
+            </label>
+            <textarea
+              value={pendingChanges.customEmailMessage}
+              onChange={(e) => handleAdvancedInputChange('customEmailMessage', e.target.value)}
+              placeholder="Enter custom email message template..."
+              rows={4}
               disabled={isSaving}
+              className={`input disabled:cursor-not-allowed disabled:opacity-50 ${
+                validationErrors?.custom_email_message ? 'border-destructive' : ''
+              }`}
             />
+            {validationErrors?.custom_email_message && (
+              <p className="mt-1 text-xs text-destructive">
+                {validationErrors.custom_email_message}
+              </p>
+            )}
+            <p className="mt-1 text-xs text-muted-foreground">
+              Custom message template for email notifications (optional)
+            </p>
           </div>
+        )}
+
+        <div className="space-y-4">
+          {/* SMS Notifications */}
+          <NotificationToggle
+            label="SMS Notifications"
+            description="Receive notifications via SMS (requires SMS provider configuration)"
+            enabled={pendingChanges.notificationSms}
+            onChange={handleSmsToggle}
+            disabled={isSaving}
+          />
           {pendingChanges.notificationSms && (
             <div className="border-t border-border p-4">
               <label className="mb-2 block text-sm font-medium text-foreground">
@@ -260,23 +253,21 @@ export const NotificationSettings = ({ userSettings, isLoading, isSaving, onSave
                 placeholder="Enter custom SMS message template..."
                 rows={4}
                 disabled={isSaving}
-                className="input disabled:cursor-not-allowed disabled:opacity-50"
+                className={`input disabled:cursor-not-allowed disabled:opacity-50 ${
+                  validationErrors?.custom_sms_message ? 'border-destructive' : ''
+                }`}
               />
+              {validationErrors?.custom_sms_message && (
+                <p className="mt-1 text-xs text-destructive">
+                  {validationErrors.custom_sms_message}
+                </p>
+              )}
               <p className="mt-1 text-xs text-muted-foreground">
                 Custom message template for SMS notifications (optional)
               </p>
             </div>
           )}
         </div>
-
-        {/* Payment Reminders */}
-        <NotificationToggle
-          label="Payment Reminders"
-          description="Get reminders for upcoming due dates"
-          enabled={localNotifications.reminders}
-          onChange={(value) => handleNotificationChange('reminders', value)}
-          disabled={isSaving}
-        />
 
         {/* Event Notifications */}
         <div className="mt-6 border-t border-border pt-6">
@@ -298,14 +289,37 @@ export const NotificationSettings = ({ userSettings, isLoading, isSaving, onSave
               onChange={handleNotifyContactToggle}
               disabled={isSaving}
             />
+
+            {/* Notification Recipient Selection */}
+            <div className="p-4">
+              <label className="mb-2 block text-sm font-medium text-foreground">
+                Notification Recipients
+              </label>
+              <select
+                value={pendingChanges.notificationRecipient}
+                onChange={(e) => handleAdvancedInputChange('notificationRecipient', e.target.value)}
+                disabled={isSaving}
+                className="input disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <option value="both">Both (Me and Contact)</option>
+                <option value="user">Me Only</option>
+                <option value="contact">Contact Only</option>
+              </select>
+              <p className="mt-1 text-xs text-muted-foreground">
+                Choose who receives notifications for payment events
+              </p>
+            </div>
           </div>
         </div>
 
         {/* Webhook Configuration */}
         <WebhookConfiguration
           webhookInputs={webhookInputs}
+          webhookEnabled={pendingChanges.notificationWebhook}
+          onWebhookToggle={handleWebhookToggle}
           onInputChange={handleWebhookInputChange}
           isSaving={isSaving}
+          validationErrors={validationErrors}
         />
 
         {/* Notification Schedule */}
@@ -313,6 +327,7 @@ export const NotificationSettings = ({ userSettings, isLoading, isSaving, onSave
           advancedInputs={advancedInputs}
           onInputChange={handleAdvancedInputChange}
           isSaving={isSaving}
+          validationErrors={validationErrors}
         />
       </div>
     </div>

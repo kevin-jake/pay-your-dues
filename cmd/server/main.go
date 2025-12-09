@@ -90,6 +90,7 @@ func main() {
 		debtItemRepo,
 		contactRepo,
 		userRepo,
+		userSettingsRepo,
 		db.DB,
 		notificationConfig,
 		logger,
@@ -109,7 +110,7 @@ func main() {
 	debtService := services.NewDebtService(debtListRepo, debtItemRepo, contactRepo, paymentScheduleService, s3Service, notificationService)
 
 	// Initialize user settings service
-	userSettingsService := services.NewUserSettingsService(userSettingsRepo, userRepo, logger)
+	userSettingsService := services.NewUserSettingsService(userSettingsRepo, userRepo, notificationRepo, logger)
 
 	// Initialize auth service with all dependencies
 	authService, err := services.NewAuthService(userRepo, contactService, userSettingsService, cfg.JWTSecret, cfg.JWTExpiry)

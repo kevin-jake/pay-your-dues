@@ -18,6 +18,9 @@ func NewTemplateEngine() *TemplateEngine {
 
 // TemplateData contains all data for template variable substitution
 type TemplateData struct {
+	// Recipient type ('user' or 'contact') - determines who receives the notification
+	RecipientType string
+
 	// User information
 	UserFirstName string
 	UserLastName  string
@@ -62,6 +65,23 @@ type TemplateData struct {
 // Render renders a template with the provided data
 func (te *TemplateEngine) Render(template string, data TemplateData) string {
 	result := template
+
+	// Determine recipient-aware names based on RecipientType
+	// When recipient is 'contact', the notification is addressed to the contact
+	// When recipient is 'user', the notification is addressed to the user
+	recipientName := data.UserFirstName
+	recipientFullName := fmt.Sprintf("%s %s", data.UserFirstName, data.UserLastName)
+	otherPartyName := data.ContactName
+	if data.RecipientType == "contact" {
+		recipientName = data.ContactName
+		recipientFullName = data.ContactName
+		otherPartyName = fmt.Sprintf("%s %s", data.UserFirstName, data.UserLastName)
+	}
+
+	// Replace recipient-aware variables (use these in templates for proper addressing)
+	result = strings.ReplaceAll(result, "{{recipient_name}}", recipientName)
+	result = strings.ReplaceAll(result, "{{recipient_full_name}}", recipientFullName)
+	result = strings.ReplaceAll(result, "{{other_party_name}}", otherPartyName)
 
 	// Replace user variables
 	result = strings.ReplaceAll(result, "{{user_first_name}}", data.UserFirstName)
@@ -135,8 +155,8 @@ func GetDefaultEmailTemplate() string {
             <h2>Payment Reminder</h2>
         </div>
         <div class="content">
-            <p>Hi {{user_first_name}},</p>
-            <p>This is a friendly reminder that a payment is due to <strong>{{contact_name}}</strong>.</p>
+            <p>Hi {{recipient_name}},</p>
+            <p>This is a friendly reminder that a payment is due to <strong>{{other_party_name}}</strong>.</p>
             
             <div class="details">
                 <h3>Payment Details:</h3>
@@ -161,7 +181,7 @@ func GetDefaultEmailTemplate() string {
 
 // GetDefaultSMSTemplate returns a default SMS template for payment reminders
 func GetDefaultSMSTemplate() string {
-	return `Reminder: Payment of {{currency}} {{amount}} due to {{contact_name}} on {{due_date}} ({{days_until_due}} days). - Pay Your Dues`
+	return `Reminder: Payment of {{currency}} {{amount}} due to {{other_party_name}} on {{due_date}} ({{days_until_due}} days). - Pay Your Dues`
 }
 
 // GetInstallmentEmailTemplate returns a default email template for installment reminders
@@ -187,8 +207,8 @@ func GetInstallmentEmailTemplate() string {
             <span class="installment-badge">Installment #{{installment_number}} of {{installment_total}}</span>
         </div>
         <div class="content">
-            <p>Hi {{user_first_name}},</p>
-            <p>This is a reminder that installment payment <strong>#{{installment_number}} of {{installment_total}}</strong> is due to <strong>{{contact_name}}</strong> in <strong>{{days_until_due}} days</strong>.</p>
+            <p>Hi {{recipient_name}},</p>
+            <p>This is a reminder that installment payment <strong>#{{installment_number}} of {{installment_total}}</strong> is due to <strong>{{other_party_name}}</strong> in <strong>{{days_until_due}} days</strong>.</p>
             
             <div class="details">
                 <h3>Payment Details:</h3>
@@ -223,7 +243,7 @@ func GetInstallmentEmailTemplate() string {
 
 // GetInstallmentSMSTemplate returns a default SMS template for installment reminders
 func GetInstallmentSMSTemplate() string {
-	return `Reminder: Installment #{{installment_number}}/{{installment_total}} of {{currency}} {{installment_amount}} due to {{contact_name}} on {{installment_due_date}} ({{days_until_due}} days).`
+	return `Reminder: Installment #{{installment_number}}/{{installment_total}} of {{currency}} {{installment_amount}} due to {{other_party_name}} on {{installment_due_date}} ({{days_until_due}} days).`
 }
 
 // GetPaymentConfirmationEmailTemplate returns a template for payment confirmation notifications
@@ -247,8 +267,8 @@ func GetPaymentConfirmationEmailTemplate() string {
             <h2>Payment Received</h2>
         </div>
         <div class="content">
-            <p>Hi {{user_first_name}},</p>
-            <p>A payment has been recorded for your debt with <strong>{{contact_name}}</strong>.</p>
+            <p>Hi {{recipient_name}},</p>
+            <p>A payment has been recorded for your debt with <strong>{{other_party_name}}</strong>.</p>
             
             <div class="details">
                 <h3>Payment Information:</h3>
@@ -293,8 +313,8 @@ func GetPaymentVerifiedEmailTemplate() string {
             <h2>✓ Payment Verified</h2>
         </div>
         <div class="content">
-            <p>Hi {{user_first_name}},</p>
-            <p>Great news! Your payment to <strong>{{contact_name}}</strong> has been verified and accepted.</p>
+            <p>Hi {{recipient_name}},</p>
+            <p>Great news! Your payment to <strong>{{other_party_name}}</strong> has been verified and accepted.</p>
             
             <div class="details">
                 <h3>Payment Information:</h3>
@@ -339,8 +359,8 @@ func GetPaymentRejectedEmailTemplate() string {
             <h2>✗ Payment Rejected</h2>
         </div>
         <div class="content">
-            <p>Hi {{user_first_name}},</p>
-            <p>Unfortunately, your payment to <strong>{{contact_name}}</strong> has been rejected.</p>
+            <p>Hi {{recipient_name}},</p>
+            <p>Unfortunately, your payment to <strong>{{other_party_name}}</strong> has been rejected.</p>
             
             <div class="details">
                 <h3>Payment Information:</h3>
@@ -355,7 +375,7 @@ func GetPaymentRejectedEmailTemplate() string {
                 <strong>Reason:</strong> {{rejection_reason}}
             </div>
 
-            <p>Please contact <strong>{{contact_name}}</strong> to resolve this issue and resubmit your payment.</p>
+            <p>Please contact <strong>{{other_party_name}}</strong> to resolve this issue and resubmit your payment.</p>
             
             <p>Best regards,<br>Pay Your Dues Team</p>
         </div>

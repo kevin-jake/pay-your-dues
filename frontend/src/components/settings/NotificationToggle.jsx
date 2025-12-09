@@ -1,6 +1,6 @@
 export const NotificationToggle = ({ label, description, enabled, onChange, disabled }) => {
   return (
-    <div className="flex items-center justify-between rounded-lg border border-border p-4">
+    <div className="flex items-center justify-between p-4">
       <div className="flex-1">
         <div className="font-medium text-foreground">{label}</div>
         <div className="text-sm text-muted-foreground">{description}</div>

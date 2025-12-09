@@ -1,6 +1,11 @@
 import { useState } from 'react'
 
-export const NotificationSchedule = ({ advancedInputs, onInputChange, isSaving }) => {
+export const NotificationSchedule = ({
+  advancedInputs,
+  onInputChange,
+  isSaving,
+  validationErrors,
+}) => {
   const [showNotificationSchedule, setShowNotificationSchedule] = useState(false)
 
   return (
@@ -49,6 +54,11 @@ export const NotificationSchedule = ({ advancedInputs, onInputChange, isSaving }
                 </button>
               ))}
             </div>
+            {validationErrors?.notification_reminder_days && (
+              <p className="mt-1 text-xs text-destructive">
+                {validationErrors.notification_reminder_days}
+              </p>
+            )}
             <p className="mt-1 text-xs text-muted-foreground">
               Select when to receive reminders before due dates
             </p>
@@ -64,8 +74,13 @@ export const NotificationSchedule = ({ advancedInputs, onInputChange, isSaving }
               value={advancedInputs.notificationTime}
               onChange={(e) => onInputChange('notificationTime', e.target.value)}
               disabled={isSaving}
-              className="input max-w-xs disabled:cursor-not-allowed disabled:opacity-50"
+              className={`input max-w-xs disabled:cursor-not-allowed disabled:opacity-50 ${
+                validationErrors?.notification_time ? 'border-destructive' : ''
+              }`}
             />
+            {validationErrors?.notification_time && (
+              <p className="mt-1 text-xs text-destructive">{validationErrors.notification_time}</p>
+            )}
             <p className="mt-1 text-xs text-muted-foreground">
               Time of day to send notifications (24-hour format)
             </p>
@@ -80,12 +95,19 @@ export const NotificationSchedule = ({ advancedInputs, onInputChange, isSaving }
               value={advancedInputs.overdueReminderFrequency}
               onChange={(e) => onInputChange('overdueReminderFrequency', e.target.value)}
               disabled={isSaving}
-              className="input max-w-xs disabled:cursor-not-allowed disabled:opacity-50"
+              className={`input max-w-xs disabled:cursor-not-allowed disabled:opacity-50 ${
+                validationErrors?.overdue_reminder_frequency ? 'border-destructive' : ''
+              }`}
             >
               <option value="daily">Daily</option>
               <option value="weekly">Weekly</option>
               <option value="monthly">Monthly</option>
             </select>
+            {validationErrors?.overdue_reminder_frequency && (
+              <p className="mt-1 text-xs text-destructive">
+                {validationErrors.overdue_reminder_frequency}
+              </p>
+            )}
             <p className="mt-1 text-xs text-muted-foreground">
               How often to send reminders for overdue payments
             </p>

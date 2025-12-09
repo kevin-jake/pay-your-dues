@@ -18,12 +18,13 @@ import (
 
 // NotificationService implements the NotificationService interface
 type NotificationService struct {
-	notificationRepo interfaces.NotificationRepository
-	templateRepo     interfaces.NotificationTemplateRepository
-	debtListRepo     interfaces.DebtListRepository
-	debtItemRepo     interfaces.DebtItemRepository
-	contactRepo      interfaces.ContactRepository
-	userRepo         interfaces.UserRepository
+	notificationRepo   interfaces.NotificationRepository
+	templateRepo       interfaces.NotificationTemplateRepository
+	debtListRepo       interfaces.DebtListRepository
+	debtItemRepo       interfaces.DebtItemRepository
+	contactRepo        interfaces.ContactRepository
+	userRepo           interfaces.UserRepository
+	userSettingsRepo   interfaces.UserSettingsRepository
 
 	emailSender     *notification.EmailSender
 	smsSender       *notification.SMSSender
@@ -44,6 +45,7 @@ func NewNotificationService(
 	debtItemRepo interfaces.DebtItemRepository,
 	contactRepo interfaces.ContactRepository,
 	userRepo interfaces.UserRepository,
+	userSettingsRepo interfaces.UserSettingsRepository,
 	db *gorm.DB,
 	cfg *config.NotificationConfig,
 	logger zerolog.Logger,
@@ -67,20 +69,21 @@ func NewNotificationService(
 	)
 
 	return &NotificationService{
-		notificationRepo: notificationRepo,
-		templateRepo:     templateRepo,
-		debtListRepo:     debtListRepo,
-		debtItemRepo:     debtItemRepo,
-		contactRepo:      contactRepo,
-		userRepo:         userRepo,
-		emailSender:      emailSender,
-		smsSender:        smsSender,
-		webhookService:   webhookService,
-		templateEngine:   templateEngine,
-		contactFetcher:   contactFetcher,
-		paymentChecker:   paymentChecker,
-		config:           cfg,
-		logger:           logger,
+		notificationRepo:   notificationRepo,
+		templateRepo:       templateRepo,
+		debtListRepo:       debtListRepo,
+		debtItemRepo:       debtItemRepo,
+		contactRepo:        contactRepo,
+		userRepo:           userRepo,
+		userSettingsRepo:   userSettingsRepo,
+		emailSender:        emailSender,
+		smsSender:          smsSender,
+		webhookService:     webhookService,
+		templateEngine:     templateEngine,
+		contactFetcher:     contactFetcher,
+		paymentChecker:     paymentChecker,
+		config:             cfg,
+		logger:             logger,
 	}
 }
 
@@ -164,7 +167,7 @@ func (s *NotificationService) CreateNotificationsForDebtList(userID uuid.UUID, d
 	}
 
 	// If it's a one-time debt, create single notification
-	if debtList.DebtType == "onetime" {
+	if debtList.InstallmentPlan == "onetime" {
 		return s.createOneTimeNotifications(s.entityToModelDebtList(debtList), userSettings)
 	}
 
@@ -175,13 +178,22 @@ func (s *NotificationService) CreateNotificationsForDebtList(userID uuid.UUID, d
 // createOneTimeNotifications creates notifications for one-time debts
 func (s *NotificationService) createOneTimeNotifications(debtList *models.DebtList, settings *models.UserSettings) error {
 	reminderDays := []int64{7, 3, 1} // Default
-	if settings.NotificationReminderDays != nil && len(settings.NotificationReminderDays) > 0 {
+	if len(settings.NotificationReminderDays) > 0 {
 		reminderDays = settings.NotificationReminderDays
 	}
-
+fmt.Println("settings", settings)
 	notificationTime := "09:00:00"
 	if settings.NotificationTime != "" {
 		notificationTime = settings.NotificationTime
+	}
+
+	// Determine which notification types to create based on user settings
+	notificationTypes := s.getEnabledNotificationTypes(settings)
+	if len(notificationTypes) == 0 {
+		s.logger.Info().
+			Str("debt_list_id", debtList.ID.String()).
+			Msg("No notification types enabled, skipping notification creation")
+		return nil
 	}
 
 	var notifications []*models.Notification
@@ -189,85 +201,28 @@ func (s *NotificationService) createOneTimeNotifications(debtList *models.DebtLi
 	for _, daysBefore := range reminderDays {
 		scheduledFor := debtList.DueDate.AddDate(0, 0, -int(daysBefore))
 		
-		// Parse notification time
-		t, _ := time.Parse("15:04:05", notificationTime)
+		// Parse notification time (try with seconds first, then without)
+		t, err := time.Parse("15:04:05", notificationTime)
+		if err != nil {
+			t, _ = time.Parse("15:04", notificationTime)
+		}
 		scheduledFor = time.Date(
 			scheduledFor.Year(), scheduledFor.Month(), scheduledFor.Day(),
-			t.Hour(), t.Minute(), t.Second(), 0, scheduledFor.Location(),
+			t.Hour(), t.Minute(), 0, 0, scheduledFor.Location(),
 		)
 
 		// Only create if scheduled time is in the future
 		if scheduledFor.After(time.Now()) {
 			daysBefore32 := int(daysBefore)
-			notification := &models.Notification{
-				ID:                 uuid.New(),
-				DebtListID:         debtList.ID,
-				NotificationType:   "email",
-				RecipientType:      "user",
-				Message:            "Payment reminder",
-				Status:             "pending",
-				ScheduleType:       "reminder",
-				ScheduledFor:       &scheduledFor,
-				ReminderDaysBefore: &daysBefore32,
-				Enabled:            true,
-				CreatedAt:          time.Now(),
-				UpdatedAt:          time.Now(),
-			}
-
-			notifications = append(notifications, notification)
-		}
-	}
-
-	if len(notifications) > 0 {
-		return s.notificationRepo.CreateBatch(notifications)
-	}
-
-	return nil
-}
-
-// createInstallmentNotifications creates notifications for installment debts
-func (s *NotificationService) createInstallmentNotifications(debtList *models.DebtList, settings *models.UserSettings) error {
-	if debtList.NumberOfPayments == nil || *debtList.NumberOfPayments == 0 {
-		return fmt.Errorf("invalid number of payments for installment debt")
-	}
-
-	reminderDays := []int64{7, 3, 1} // Default
-	if settings.NotificationReminderDays != nil && len(settings.NotificationReminderDays) > 0 {
-		reminderDays = settings.NotificationReminderDays
-	}
-
-	notificationTime := "09:00:00"
-	if settings.NotificationTime != "" {
-		notificationTime = settings.NotificationTime
-	}
-
-	var notifications []*models.Notification
-	currentDueDate := debtList.DueDate
-
-	for i := 1; i <= *debtList.NumberOfPayments; i++ {
-		installmentNumber := i
-
-		for _, daysBefore := range reminderDays {
-			scheduledFor := currentDueDate.AddDate(0, 0, -int(daysBefore))
 			
-			// Parse notification time
-			t, _ := time.Parse("15:04:05", notificationTime)
-			scheduledFor = time.Date(
-				scheduledFor.Year(), scheduledFor.Month(), scheduledFor.Day(),
-				t.Hour(), t.Minute(), t.Second(), 0, scheduledFor.Location(),
-			)
-
-			// Only create if scheduled time is in the future
-			if scheduledFor.After(time.Now()) {
-				daysBefore32 := int(daysBefore)
+			// Create a notification for each enabled notification type
+			for _, notifType := range notificationTypes {
 				notification := &models.Notification{
 					ID:                 uuid.New(),
 					DebtListID:         debtList.ID,
-					InstallmentNumber:  &installmentNumber,
-					InstallmentDueDate: &currentDueDate,
-					NotificationType:   "email",
+					NotificationType:   notifType,
 					RecipientType:      "user",
-					Message:            fmt.Sprintf("Installment #%d payment reminder", installmentNumber),
+					Message:            "Payment reminder",
 					Status:             "pending",
 					ScheduleType:       "reminder",
 					ScheduledFor:       &scheduledFor,
@@ -280,9 +235,178 @@ func (s *NotificationService) createInstallmentNotifications(debtList *models.De
 				notifications = append(notifications, notification)
 			}
 		}
+	}
+
+	if len(notifications) > 0 {
+		return s.notificationRepo.CreateBatch(notifications)
+	}
+
+	return nil
+}
+
+// getEnabledNotificationTypes returns a list of enabled notification types based on user settings
+func (s *NotificationService) getEnabledNotificationTypes(settings *models.UserSettings) []string {
+	var types []string
+	
+	if settings.NotificationEmail {
+		types = append(types, "email")
+	}
+	if settings.NotificationSMS {
+		types = append(types, "sms")
+	}
+	if settings.NotificationWebhook {
+		// Add webhook types based on configured webhooks
+		if settings.SlackWebhookURL != nil && *settings.SlackWebhookURL != "" {
+			types = append(types, "slack")
+		}
+		if settings.TelegramBotToken != nil && *settings.TelegramBotToken != "" && 
+		   settings.TelegramChatID != nil && *settings.TelegramChatID != "" {
+			types = append(types, "telegram")
+		}
+		if settings.DiscordWebhookURL != nil && *settings.DiscordWebhookURL != "" {
+			types = append(types, "discord")
+		}
+	}
+	
+	return types
+}
+
+// shouldNotifyRecipient checks if a notification should be sent to the given recipient type
+// based on the user's notification_recipient setting ('user', 'contact', or 'both')
+func (s *NotificationService) shouldNotifyRecipient(settings *models.UserSettings, recipientType string) bool {
+	// Default to 'both' if not set
+	recipientSetting := settings.NotificationRecipient
+	if recipientSetting == "" {
+		recipientSetting = "both"
+	}
+	
+	switch recipientSetting {
+	case "both":
+		return true
+	case "user":
+		return recipientType == "user"
+	case "contact":
+		return recipientType == "contact"
+	default:
+		return true // Default to allowing if invalid setting
+	}
+}
+
+// createInstallmentNotifications creates notifications for installment debts
+func (s *NotificationService) createInstallmentNotifications(debtList *models.DebtList, settings *models.UserSettings) error {
+	if debtList.NumberOfPayments == nil || *debtList.NumberOfPayments == 0 {
+		return fmt.Errorf("invalid number of payments for installment debt")
+	}
+
+	reminderDays := []int64{7, 3, 1} // Default
+	if len(settings.NotificationReminderDays) > 0 {
+		reminderDays = settings.NotificationReminderDays
+	}
+
+	notificationTime := "09:00:00"
+	if settings.NotificationTime != "" {
+		notificationTime = settings.NotificationTime
+	}
+
+	// Determine which notification types to create based on user settings
+	notificationTypes := s.getEnabledNotificationTypes(settings)
+	if len(notificationTypes) == 0 {
+		s.logger.Info().
+			Str("debt_list_id", debtList.ID.String()).
+			Msg("No notification types enabled, skipping notification creation")
+		return nil
+	}
+
+	var notifications []*models.Notification
+	currentDueDate := debtList.DueDate
+
+	for i := 1; i <= *debtList.NumberOfPayments; i++ {
+		installmentNumber := i
+
+		for _, daysBefore := range reminderDays {
+			scheduledFor := currentDueDate.AddDate(0, 0, -int(daysBefore))
+			
+			// Parse notification time (try with seconds first, then without)
+			t, err := time.Parse("15:04:05", notificationTime)
+			if err != nil {
+				t, _ = time.Parse("15:04", notificationTime)
+			}
+			scheduledFor = time.Date(
+				scheduledFor.Year(), scheduledFor.Month(), scheduledFor.Day(),
+				t.Hour(), t.Minute(), 0, 0, scheduledFor.Location(),
+			)
+
+			// Only create if scheduled time is in the future
+			if scheduledFor.After(time.Now()) {
+				daysBefore32 := int(daysBefore)
+				
+				// Create a notification for each enabled notification type
+				for _, notifType := range notificationTypes {
+					notification := &models.Notification{
+						ID:                 uuid.New(),
+						DebtListID:         debtList.ID,
+						InstallmentNumber:  &installmentNumber,
+						InstallmentDueDate: &currentDueDate,
+						NotificationType:   notifType,
+						RecipientType:      "user",
+						Message:            fmt.Sprintf("Installment #%d payment reminder", installmentNumber),
+						Status:             "pending",
+						ScheduleType:       "reminder",
+						ScheduledFor:       &scheduledFor,
+						ReminderDaysBefore: &daysBefore32,
+						Enabled:            true,
+						CreatedAt:          time.Now(),
+						UpdatedAt:          time.Now(),
+					}
+
+					notifications = append(notifications, notification)
+				}
+			}
+		}
 
 		// Calculate next due date based on installment plan
 		currentDueDate = s.calculateNextDueDate(currentDueDate, debtList.InstallmentPlan)
+	}
+
+	if *debtList.NumberOfPayments == 1 {
+
+		for _, daysBefore := range reminderDays {
+			scheduledFor := currentDueDate.AddDate(0, 0, -int(daysBefore))
+			
+			// Parse notification time (try with seconds first, then without)
+			t, err := time.Parse("15:04:05", notificationTime)
+			if err != nil {
+				t, _ = time.Parse("15:04", notificationTime)
+			}
+			scheduledFor = time.Date(
+				scheduledFor.Year(), scheduledFor.Month(), scheduledFor.Day(),
+				t.Hour(), t.Minute(), 0, 0, scheduledFor.Location(),
+			)
+
+			// Only create if scheduled time is in the future
+			if scheduledFor.After(time.Now()) {
+				daysBefore32 := int(daysBefore)
+				
+				// Create a notification for each enabled notification type
+				for _, notifType := range notificationTypes {
+					notification := &models.Notification{
+						ID:                 uuid.New(),
+						DebtListID:         debtList.ID,
+						NotificationType:   notifType,
+						RecipientType:      "user",
+						Status:             "pending",
+						ScheduleType:       "reminder",
+						ScheduledFor:       &scheduledFor,
+						ReminderDaysBefore: &daysBefore32,
+						Enabled:            true,
+						CreatedAt:          time.Now(),
+						UpdatedAt:          time.Now(),
+					}
+
+					notifications = append(notifications, notification)
+				}
+			}
+		}
 	}
 
 	if len(notifications) > 0 {
@@ -330,8 +454,18 @@ func (s *NotificationService) CreateNotificationsForInstallment(debtListID uuid.
 	}
 
 	reminderDays := []int64{7, 3, 1}
-	if userSettings.NotificationReminderDays != nil && len(userSettings.NotificationReminderDays) > 0 {
+	if len(userSettings.NotificationReminderDays) > 0 {
 		reminderDays = userSettings.NotificationReminderDays
+	}
+
+	// Determine which notification types to create based on user settings
+	notificationTypes := s.getEnabledNotificationTypes(userSettings)
+	if len(notificationTypes) == 0 {
+		s.logger.Info().
+			Str("debt_list_id", debtListID.String()).
+			Int("installment_number", installmentNumber).
+			Msg("No notification types enabled, skipping notification creation")
+		return nil
 	}
 
 	var notifications []*models.Notification
@@ -341,24 +475,28 @@ func (s *NotificationService) CreateNotificationsForInstallment(debtListID uuid.
 		
 		if scheduledFor.After(time.Now()) {
 			daysBefore32 := int(daysBefore)
-			notification := &models.Notification{
-				ID:                 uuid.New(),
-				DebtListID:         debtListID,
-				InstallmentNumber:  &installmentNumber,
-				InstallmentDueDate: &installmentDueDate,
-				NotificationType:   "email",
-				RecipientType:      "user",
-				Message:            fmt.Sprintf("Installment #%d payment reminder", installmentNumber),
-				Status:             "pending",
-				ScheduleType:       "reminder",
-				ScheduledFor:       &scheduledFor,
-				ReminderDaysBefore: &daysBefore32,
-				Enabled:            true,
-				CreatedAt:          time.Now(),
-				UpdatedAt:          time.Now(),
-			}
+			
+			// Create a notification for each enabled notification type
+			for _, notifType := range notificationTypes {
+				notification := &models.Notification{
+					ID:                 uuid.New(),
+					DebtListID:         debtListID,
+					InstallmentNumber:  &installmentNumber,
+					InstallmentDueDate: &installmentDueDate,
+					NotificationType:   notifType,
+					RecipientType:      "user",
+					Message:            fmt.Sprintf("Installment #%d payment reminder", installmentNumber),
+					Status:             "pending",
+					ScheduleType:       "reminder",
+					ScheduledFor:       &scheduledFor,
+					ReminderDaysBefore: &daysBefore32,
+					Enabled:            true,
+					CreatedAt:          time.Now(),
+					UpdatedAt:          time.Now(),
+				}
 
-			notifications = append(notifications, notification)
+				notifications = append(notifications, notification)
+			}
 		}
 	}
 
@@ -570,16 +708,25 @@ func (s *NotificationService) DisableNotificationsForPaidInstallment(debtListID 
 
 // getUserSettings gets user settings or returns defaults
 func (s *NotificationService) getUserSettings(userID uuid.UUID) (*models.UserSettings, error) {
-	// Try to get from database
-	// For now, return default settings
-	return &models.UserSettings{
-		UserID:                   userID,
-		NotificationEmail:        true,
-		NotificationSMS:          false,
-		NotificationWebhook:      false,
-		NotificationReminderDays: []int64{7, 3, 1},
-		NotificationTime:         "09:00:00",
-	}, nil
+	ctx := context.Background()
+	
+	// GetOrCreate returns existing settings or creates default ones
+	settings, err := s.userSettingsRepo.GetOrCreate(ctx, userID)
+	if err != nil {
+		s.logger.Error().Err(err).Str("userID", userID.String()).Msg("Failed to get user settings, using defaults")
+		// Return default settings on error
+		return &models.UserSettings{
+			UserID:                   userID,
+			NotificationEmail:        true,
+			NotificationSMS:          false,
+			NotificationWebhook:      false,
+			NotificationReminderDays: []int64{7, 3, 1},
+			NotificationTime:         "09:00:00",
+			NotificationRecipient:    "both",
+		}, nil
+	}
+	
+	return settings, nil
 }
 
 // entityToModelDebtList converts entities.DebtList to models.DebtList

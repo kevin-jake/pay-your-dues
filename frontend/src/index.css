@@ -238,3 +238,95 @@
   @apply !cursor-not-allowed !text-muted-foreground;
   opacity: 0.5 !important;
 }
+
+/* React Phone Number Input - Dark Mode Support */
+.PhoneInput {
+  --PhoneInput-color--focus: hsl(var(--ring));
+  --PhoneInputInternationalIconPhone-opacity: 0.8;
+  --PhoneInputInternationalIconGlobe-opacity: 0.65;
+  --PhoneInputCountrySelect-marginRight: 0.35em;
+  --PhoneInputCountrySelectArrow-width: 0.3em;
+  --PhoneInputCountrySelectArrow-marginLeft: 0.35em;
+  --PhoneInputCountrySelectArrow-borderWidth: 1px;
+  --PhoneInputCountrySelectArrow-opacity: 0.45;
+  --PhoneInputCountrySelectArrow-color: currentColor;
+  --PhoneInputCountrySelectArrow-color--focus: hsl(var(--primary));
+  --PhoneInputCountrySelectArrow-transform: rotate(45deg);
+  --PhoneInputCountryFlag-aspectRatio: 1.5;
+  --PhoneInputCountryFlag-height: 1em;
+  --PhoneInputCountryFlag-borderWidth: 1px;
+  --PhoneInputCountryFlag-borderColor: rgba(0, 0, 0, 0.5);
+  --PhoneInputCountryFlag-borderColor--focus: hsl(var(--primary));
+  --PhoneInputCountryFlag-backgroundColor--loading: rgba(0, 0, 0, 0.1);
+}
+
+/* PhoneInput container styling */
+.PhoneInput .PhoneInputInput {
+  @apply flex-1 border-0 bg-transparent text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-0;
+}
+
+/* Country selector button */
+.PhoneInput .PhoneInputCountrySelect {
+  @apply cursor-pointer appearance-none border-0 bg-transparent text-foreground;
+}
+
+/* Country selector arrow */
+.PhoneInput .PhoneInputCountrySelectArrow {
+  @apply border-muted-foreground;
+}
+
+/* Country flag border in dark mode */
+.dark .PhoneInput .PhoneInputCountryIcon--border {
+  --PhoneInputCountryFlag-borderColor: hsl(var(--border));
+  box-shadow: 0 0 0 var(--PhoneInputCountryFlag-borderWidth) var(--PhoneInputCountryFlag-borderColor),
+    inset 0 0 0 var(--PhoneInputCountryFlag-borderWidth) var(--PhoneInputCountryFlag-borderColor);
+}
+
+/* Focus state for country flag */
+.PhoneInput .PhoneInputCountrySelect:focus + .PhoneInputCountryIcon .PhoneInputCountryIconImg {
+  --PhoneInputCountryFlag-borderColor: hsl(var(--primary));
+}
+
+/* Dark mode specific overrides */
+.dark .PhoneInput .PhoneInputInput {
+  @apply text-foreground placeholder:text-muted-foreground;
+  background-color: transparent;
+}
+
+.dark .PhoneInput .PhoneInputInput::placeholder {
+  color: hsl(var(--muted-foreground));
+}
+
+.dark .PhoneInput .PhoneInputCountrySelect {
+  @apply text-foreground;
+  background-color: transparent;
+}
+
+.dark .PhoneInput .PhoneInputCountrySelectArrow {
+  @apply border-muted-foreground;
+}
+
+/* Country dropdown styling for dark mode */
+.dark .PhoneInputCountrySelect option {
+  @apply bg-card text-foreground;
+}
+
+/* International icon styling in dark mode */
+.dark .PhoneInput .PhoneInputInternationalIconPhone {
+  fill: hsl(var(--foreground));
+}
+
+.dark .PhoneInput .PhoneInputInternationalIconGlobe {
+  stroke: hsl(var(--foreground));
+}
+
+/* Ensure consistent styling when using .input class wrapper */
+.input.PhoneInput,
+.dark .input.PhoneInput {
+  @apply flex items-center gap-2;
+}
+
+.input.PhoneInput .PhoneInputInput,
+.dark .input.PhoneInput .PhoneInputInput {
+  @apply p-0;
+}

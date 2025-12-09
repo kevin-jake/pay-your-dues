@@ -108,7 +108,7 @@ func (d *DiscordSender) formatPaymentReminder(data TemplateData) DiscordMessage 
 		},
 		{
 			Name:   "Days Until Due",
-			Value:  fmt.Sprintf("%s days", data.DaysUntilDue),
+			Value:  fmt.Sprintf("%d days", data.DaysUntilDue),
 			Inline: true,
 		},
 	}
@@ -117,7 +117,7 @@ func (d *DiscordSender) formatPaymentReminder(data TemplateData) DiscordMessage 
 	if data.InstallmentNumber > 0 && data.InstallmentTotal > 0 {
 		fields = append(fields, DiscordEmbedField{
 			Name:   "Installment",
-			Value:  fmt.Sprintf("#%s of %s", data.InstallmentNumber, data.InstallmentTotal),
+			Value:  fmt.Sprintf("#%d of %d", data.InstallmentNumber, data.InstallmentTotal),
 			Inline: true,
 		})
 		fields = append(fields, DiscordEmbedField{

@@ -165,6 +165,21 @@ func (w *NotificationWorker) processNotification(ctx context.Context, notif *mod
 		return fmt.Errorf("failed to get user settings: %w", err)
 	}
 
+	// Check if notification should be sent based on recipient preference
+	if !w.shouldNotifyRecipient(userSettings, notif.RecipientType) {
+		// Skip this notification - mark as skipped
+		now := time.Now()
+		if err := w.notificationRepo.UpdateStatus(notif.ID, "skipped", &now); err != nil {
+			w.logger.Error().Err(err).Str("notification_id", notif.ID.String()).Msg("Failed to update notification status to skipped")
+		}
+		w.logger.Debug().
+			Str("notification_id", notif.ID.String()).
+			Str("recipient_type", notif.RecipientType).
+			Str("recipient_setting", userSettings.NotificationRecipient).
+			Msg("Skipping notification due to recipient preference")
+		return nil
+	}
+
 	// Calculate days until due
 	daysUntilDue := 0
 	if notif.InstallmentDueDate != nil {
@@ -195,6 +210,7 @@ func (w *NotificationWorker) processNotification(ctx context.Context, notif *mod
 	}
 
 	notifData := notification.TemplateData{
+		RecipientType:          notif.RecipientType, // 'user' or 'contact' - determines template addressing
 		UserFirstName:          contactInfo.UserFirstName,
 		UserLastName:           contactInfo.UserLastName,
 		UserEmail:              contactInfo.UserEmail,
@@ -226,6 +242,12 @@ func (w *NotificationWorker) processNotification(ctx context.Context, notif *mod
 		sendErr = w.sendSMSNotification(notif, notifData, contactInfo, userSettings)
 	case "webhook":
 		sendErr = w.sendWebhookNotification(notif, notifData, userSettings)
+	case "slack":
+		sendErr = w.sendSlackNotification(notifData, userSettings)
+	case "telegram":
+		sendErr = w.sendTelegramNotification(notifData, userSettings)
+	case "discord":
+		sendErr = w.sendDiscordNotification(notifData, userSettings)
 	default:
 		sendErr = fmt.Errorf("unsupported notification type: %s", notif.NotificationType)
 	}
@@ -351,6 +373,66 @@ func (w *NotificationWorker) sendWebhookNotification(
 	return w.webhookService.SendNotification(*notif.WebhookType, userSettings, data)
 }
 
+// sendSlackNotification sends a Slack webhook notification
+func (w *NotificationWorker) sendSlackNotification(
+	data notification.TemplateData,
+	userSettings *models.UserSettings,
+) error {
+	// Check if Slack webhook is configured
+	if !w.webhookService.IsWebhookConfigured("slack", userSettings) {
+		return fmt.Errorf("slack webhook not configured. Please configure Slack webhook URL in user settings")
+	}
+
+	return w.webhookService.SendNotification("slack", userSettings, data)
+}
+
+// sendTelegramNotification sends a Telegram notification
+func (w *NotificationWorker) sendTelegramNotification(
+	data notification.TemplateData,
+	userSettings *models.UserSettings,
+) error {
+	// Check if Telegram is configured
+	if !w.webhookService.IsWebhookConfigured("telegram", userSettings) {
+		return fmt.Errorf("telegram not configured. Please configure Telegram bot token and chat ID in user settings")
+	}
+
+	return w.webhookService.SendNotification("telegram", userSettings, data)
+}
+
+// sendDiscordNotification sends a Discord webhook notification
+func (w *NotificationWorker) sendDiscordNotification(
+	data notification.TemplateData,
+	userSettings *models.UserSettings,
+) error {
+	// Check if Discord webhook is configured
+	if !w.webhookService.IsWebhookConfigured("discord", userSettings) {
+		return fmt.Errorf("discord webhook not configured. Please configure Discord webhook URL in user settings")
+	}
+
+	return w.webhookService.SendNotification("discord", userSettings, data)
+}
+
+// shouldNotifyRecipient checks if a notification should be sent to the given recipient type
+// based on the user's notification_recipient setting ('user', 'contact', or 'both')
+func (w *NotificationWorker) shouldNotifyRecipient(settings *models.UserSettings, recipientType string) bool {
+	// Default to 'both' if not set
+	recipientSetting := settings.NotificationRecipient
+	if recipientSetting == "" {
+		recipientSetting = "both"
+	}
+	
+	switch recipientSetting {
+	case "both":
+		return true
+	case "user":
+		return recipientType == "user"
+	case "contact":
+		return recipientType == "contact"
+	default:
+		return true // Default to allowing if invalid setting
+	}
+}
+
 // getUserSettings gets user settings from database or returns defaults
 func (w *NotificationWorker) getUserSettings(userID uuid.UUID) (*models.UserSettings, error) {
 	var settings models.UserSettings
@@ -364,15 +446,16 @@ func (w *NotificationWorker) getUserSettings(userID uuid.UUID) (*models.UserSett
 				Str("user_id", userID.String()).
 				Msg("User settings not found, using defaults")
 			return &models.UserSettings{
-				UserID:                   userID,
-				NotificationEmail:        true,
-				NotificationSMS:          false,
-				NotificationWebhook:      false,
-				NotificationReminderDays: []int64{7, 3, 1},
-				NotificationTime:         "09:00:00",
-				OverdueReminderFrequency: "daily",
+				UserID:                    userID,
+				NotificationEmail:         true,
+				NotificationSMS:           false,
+				NotificationWebhook:       false,
+				NotificationReminderDays:  []int64{7, 3, 1},
+				NotificationTime:          "09:00:00",
+				OverdueReminderFrequency:  "daily",
 				EventNotificationsEnabled: true,
 				NotifyContactOnPayment:    true,
+				NotificationRecipient:     "both",
 				DefaultCurrency:           "Php",
 				Timezone:                  "UTC",
 			}, nil

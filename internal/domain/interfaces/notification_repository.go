@@ -37,6 +37,10 @@ type NotificationRepository interface {
 	// Status checking
 	HasPendingNotifications(debtListID uuid.UUID, installmentNumber *int) (bool, error)
 	CountNotificationsByDebtList(debtListID uuid.UUID) (int64, error)
+
+	// User-specific operations
+	GetPendingNotificationsByUserID(userID uuid.UUID) ([]*models.Notification, error)
+	UpdatePendingNotificationsByUserID(userID uuid.UUID, updates map[string]interface{}) error
 }
 
 // NotificationTemplateRepository defines the interface for notification template data access

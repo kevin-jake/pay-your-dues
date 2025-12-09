@@ -6,9 +6,9 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/lib/pq"
+	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/rs/zerolog"
 
 	"pay-your-dues/internal/domain/entities"
 	"pay-your-dues/internal/mocks"

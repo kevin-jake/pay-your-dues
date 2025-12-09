@@ -89,8 +89,9 @@ func (s *debtService) CreateDebtList(ctx context.Context, userID uuid.UUID, req 
 	var numberOfPayments *int
 
 	createdAt := time.Now()
-
-	if req.NumberOfPayments != nil && *req.NumberOfPayments > 0 {
+	if req.NumberOfPayments != nil && *req.NumberOfPayments == 1 && req.DueDate != nil {
+		dueDate = *req.DueDate
+	} else if req.NumberOfPayments != nil && *req.NumberOfPayments > 0 {
 		// Use number of payments to calculate due date and installment amount
 		numberOfPayments = req.NumberOfPayments
 		dueDate = s.paymentScheduleService.CalculateDueDateFromNumberOfPayments(createdAt, *req.NumberOfPayments, installmentPlan)

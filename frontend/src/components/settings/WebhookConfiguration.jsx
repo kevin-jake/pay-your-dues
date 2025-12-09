@@ -1,6 +1,14 @@
 import { useState } from 'react'
+import { NotificationToggle } from './NotificationToggle'
 
-export const WebhookConfiguration = ({ webhookInputs, onInputChange, isSaving }) => {
+export const WebhookConfiguration = ({
+  webhookInputs,
+  webhookEnabled,
+  onWebhookToggle,
+  onInputChange,
+  isSaving,
+  validationErrors,
+}) => {
   const [showWebhookConfig, setShowWebhookConfig] = useState(false)
   const [showToken, setShowToken] = useState(false)
 
@@ -24,7 +32,20 @@ export const WebhookConfiguration = ({ webhookInputs, onInputChange, isSaving })
       </button>
 
       {showWebhookConfig && (
-        <div className="mt-4 space-y-4">
+        <div className="mt-4">
+          {/* Webhook Notifications Master Toggle */}
+          <NotificationToggle
+            label="Enable Webhook Notifications"
+            description="Send notifications to configured webhooks (Slack, Telegram, Discord)"
+            enabled={webhookEnabled}
+            onChange={onWebhookToggle}
+            disabled={isSaving}
+          />
+        </div>
+      )}
+
+      {showWebhookConfig && webhookEnabled && (
+        <div className="mt-4 space-y-4 border-t border-border pt-4">
           {/* Slack Webhook */}
           <div>
             <label className="mb-2 block text-sm font-medium text-foreground">
@@ -36,8 +57,13 @@ export const WebhookConfiguration = ({ webhookInputs, onInputChange, isSaving })
               onChange={(e) => onInputChange('slackWebhookUrl', e.target.value)}
               placeholder="https://hooks.slack.com/services/..."
               disabled={isSaving}
-              className="input disabled:cursor-not-allowed disabled:opacity-50"
+              className={`input disabled:cursor-not-allowed disabled:opacity-50 ${
+                validationErrors?.slack_webhook_url ? 'border-destructive' : ''
+              }`}
             />
+            {validationErrors?.slack_webhook_url && (
+              <p className="mt-1 text-xs text-destructive">{validationErrors.slack_webhook_url}</p>
+            )}
             <p className="mt-1 text-xs text-muted-foreground">
               Enter your Slack webhook URL to receive notifications
             </p>
@@ -55,7 +81,9 @@ export const WebhookConfiguration = ({ webhookInputs, onInputChange, isSaving })
                 onChange={(e) => onInputChange('telegramBotToken', e.target.value)}
                 placeholder="Enter bot token"
                 disabled={isSaving}
-                className="input pr-10 disabled:cursor-not-allowed disabled:opacity-50"
+                className={`input pr-10 disabled:cursor-not-allowed disabled:opacity-50 ${
+                  validationErrors?.telegram_bot_token ? 'border-destructive' : ''
+                }`}
               />
               <button
                 type="button"
@@ -91,6 +119,9 @@ export const WebhookConfiguration = ({ webhookInputs, onInputChange, isSaving })
                 )}
               </button>
             </div>
+            {validationErrors?.telegram_bot_token && (
+              <p className="mt-1 text-xs text-destructive">{validationErrors.telegram_bot_token}</p>
+            )}
             <p className="mt-1 text-xs text-muted-foreground">
               Your Telegram bot token (kept secure)
             </p>
@@ -106,8 +137,13 @@ export const WebhookConfiguration = ({ webhookInputs, onInputChange, isSaving })
               onChange={(e) => onInputChange('telegramChatId', e.target.value)}
               placeholder="Enter chat ID"
               disabled={isSaving}
-              className="input disabled:cursor-not-allowed disabled:opacity-50"
+              className={`input disabled:cursor-not-allowed disabled:opacity-50 ${
+                validationErrors?.telegram_chat_id ? 'border-destructive' : ''
+              }`}
             />
+            {validationErrors?.telegram_chat_id && (
+              <p className="mt-1 text-xs text-destructive">{validationErrors.telegram_chat_id}</p>
+            )}
             <p className="mt-1 text-xs text-muted-foreground">
               Your Telegram chat ID for receiving notifications
             </p>
@@ -124,8 +160,15 @@ export const WebhookConfiguration = ({ webhookInputs, onInputChange, isSaving })
               onChange={(e) => onInputChange('discordWebhookUrl', e.target.value)}
               placeholder="https://discord.com/api/webhooks/..."
               disabled={isSaving}
-              className="input disabled:cursor-not-allowed disabled:opacity-50"
+              className={`input disabled:cursor-not-allowed disabled:opacity-50 ${
+                validationErrors?.discord_webhook_url ? 'border-destructive' : ''
+              }`}
             />
+            {validationErrors?.discord_webhook_url && (
+              <p className="mt-1 text-xs text-destructive">
+                {validationErrors.discord_webhook_url}
+              </p>
+            )}
             <p className="mt-1 text-xs text-muted-foreground">
               Enter your Discord webhook URL to receive notifications
             </p>

@@ -307,3 +307,38 @@ func (r *NotificationRepositoryGORM) CancelStaleNotifications(daysOld int) error
 		}).Error
 }
 
+// GetPendingNotificationsByUserID retrieves all pending notifications for a user
+func (r *NotificationRepositoryGORM) GetPendingNotificationsByUserID(userID uuid.UUID) ([]*models.Notification, error) {
+	var notifications []*models.Notification
+	err := r.db.Joins("JOIN debt_lists ON notifications.debt_list_id = debt_lists.id").
+		Where("debt_lists.user_id = ? AND notifications.status = ? AND notifications.enabled = ?",
+			userID, "pending", true).
+		Find(&notifications).Error
+	if err != nil {
+		return nil, err
+	}
+	return notifications, nil
+}
+
+// UpdatePendingNotificationsByUserID updates all pending notifications for a user
+func (r *NotificationRepositoryGORM) UpdatePendingNotificationsByUserID(userID uuid.UUID, updates map[string]interface{}) error {
+	// Get all debt list IDs for this user
+	var debtListIDs []uuid.UUID
+	err := r.db.Model(&models.DebtList{}).
+		Where("user_id = ?", userID).
+		Pluck("id", &debtListIDs).Error
+	if err != nil {
+		return err
+	}
+
+	if len(debtListIDs) == 0 {
+		return nil // No debt lists, nothing to update
+	}
+
+	// Update all pending notifications for these debt lists
+	return r.db.Model(&models.Notification{}).
+		Where("debt_list_id IN ? AND status = ? AND enabled = ?",
+			debtListIDs, "pending", true).
+		Updates(updates).Error
+}
+
