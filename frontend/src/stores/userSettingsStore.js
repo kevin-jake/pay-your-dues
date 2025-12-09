@@ -29,8 +29,7 @@ const getDefaultSettings = () => ({
   customEmailMessage: null,
   customSmsMessage: null,
   slackWebhookUrl: null,
-  telegramBotToken: null,
-  telegramChatId: null,
+  telegramChatId: null, // Set via Telegram bot subscription flow, not manually
   discordWebhookUrl: null,
   eventNotificationsEnabled: true,
   notifyContactOnPayment: true,

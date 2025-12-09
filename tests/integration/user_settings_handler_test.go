@@ -179,19 +179,20 @@ func TestUserSettingsHandler_UpdateUserSettings(t *testing.T) {
 		{
 			name: "successful update webhook configuration",
 			requestBody: map[string]interface{}{
-				"telegram_bot_token": "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11",
-				"telegram_chat_id":   "123456789",
+				"slack_webhook_url":    "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX",
+				"discord_webhook_url":  "https://discord.com/api/webhooks/123456789/abcdefghijklmnopqrstuvwxyz",
+				"notification_webhook": true,
 			},
 			setupMocks: func(mockService *mocks.MockUserSettingsService) {
 				userID := uuid.New()
-				botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
-				chatID := "123456789"
+				slackURL := "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX"
+				discordURL := "https://discord.com/api/webhooks/123456789/abcdefghijklmnopqrstuvwxyz"
 				updatedSettings := &models.UserSettings{
 					ID:                        uuid.New(),
 					UserID:                    userID,
 					NotificationEmail:         true,
 					NotificationSMS:           false,
-					NotificationWebhook:       false,
+					NotificationWebhook:       true,
 					NotificationReminderDays:  pq.Int64Array{7, 3, 1},
 					NotificationTime:          "09:00:00",
 					OverdueReminderFrequency:  "daily",
@@ -199,8 +200,8 @@ func TestUserSettingsHandler_UpdateUserSettings(t *testing.T) {
 					NotifyContactOnPayment:    true,
 					DefaultCurrency:           "Php",
 					Timezone:                  "UTC",
-					TelegramBotToken:          &botToken,
-					TelegramChatID:            &chatID,
+					SlackWebhookURL:           &slackURL,
+					DiscordWebhookURL:         &discordURL,
 				}
 				mockService.On("UpdateUserSettings", mock.Anything, mock.AnythingOfType("uuid.UUID"), mock.AnythingOfType("*models.UpdateUserSettingsRequest")).Return(updatedSettings, nil)
 			},
@@ -212,8 +213,8 @@ func TestUserSettingsHandler_UpdateUserSettings(t *testing.T) {
 				assert.Equal(t, "User settings updated successfully", body["message"])
 				data, ok := body["data"].(map[string]interface{})
 				assert.True(t, ok)
-				assert.NotNil(t, data["telegram_bot_token"])
-				assert.Equal(t, "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11", data["telegram_bot_token"])
+				assert.NotNil(t, data["slack_webhook_url"])
+				assert.Equal(t, "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX", data["slack_webhook_url"])
 			},
 		},
 		{

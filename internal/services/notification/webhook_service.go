@@ -8,17 +8,20 @@ import (
 
 // WebhookService provides a unified interface for sending notifications via webhooks
 type WebhookService struct {
-	slackSender    *SlackSender
-	telegramSender *TelegramSender
-	discordSender  *DiscordSender
+	slackSender      *SlackSender
+	telegramSender   *TelegramSender
+	discordSender    *DiscordSender
+	telegramBotToken string // App-level Telegram bot token (shared by all users)
 }
 
 // NewWebhookService creates a new webhook service instance
-func NewWebhookService() *WebhookService {
+// telegramBotToken is the app-level bot token used for all Telegram notifications
+func NewWebhookService(telegramBotToken string) *WebhookService {
 	return &WebhookService{
-		slackSender:    NewSlackSender(),
-		telegramSender: NewTelegramSender(),
-		discordSender:  NewDiscordSender(),
+		slackSender:      NewSlackSender(),
+		telegramSender:   NewTelegramSender(),
+		discordSender:    NewDiscordSender(),
+		telegramBotToken: telegramBotToken,
 	}
 }
 
@@ -50,17 +53,20 @@ func (ws *WebhookService) sendSlackNotification(settings *models.UserSettings, d
 }
 
 // sendTelegramNotification sends a notification to Telegram
+// Uses the app-level bot token instead of per-user tokens
 func (ws *WebhookService) sendTelegramNotification(settings *models.UserSettings, data TemplateData) error {
-	if settings.TelegramBotToken == nil || *settings.TelegramBotToken == "" {
-		return fmt.Errorf("Telegram bot token not configured")
+	// Use app-level bot token
+	if ws.telegramBotToken == "" {
+		return fmt.Errorf("Telegram bot token not configured at application level")
 	}
 
+	// User must have linked their Telegram account (chat ID stored)
 	if settings.TelegramChatID == nil || *settings.TelegramChatID == "" {
-		return fmt.Errorf("Telegram chat ID not configured")
+		return fmt.Errorf("Telegram not linked - user needs to subscribe via the Telegram bot")
 	}
 
 	return ws.telegramSender.SendNotification(
-		*settings.TelegramBotToken,
+		ws.telegramBotToken,
 		*settings.TelegramChatID,
 		data,
 	)
@@ -81,7 +87,8 @@ func (ws *WebhookService) IsWebhookConfigured(webhookType string, settings *mode
 	case "slack":
 		return settings.SlackWebhookURL != nil && *settings.SlackWebhookURL != ""
 	case "telegram":
-		return settings.TelegramBotToken != nil && *settings.TelegramBotToken != "" &&
+		// For Telegram, only need chat ID since bot token is app-level
+		return ws.telegramBotToken != "" &&
 			settings.TelegramChatID != nil && *settings.TelegramChatID != ""
 	case "discord":
 		return settings.DiscordWebhookURL != nil && *settings.DiscordWebhookURL != ""
@@ -129,3 +136,7 @@ func (ws *WebhookService) SendToAllConfiguredWebhooks(
 	return results
 }
 
+// IsTelegramConfigured returns true if Telegram is configured at the app level
+func (ws *WebhookService) IsTelegramConfigured() bool {
+	return ws.telegramBotToken != ""
+}

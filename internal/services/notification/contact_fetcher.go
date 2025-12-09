@@ -203,8 +203,7 @@ type UserNotificationSettings struct {
 	CustomEmailMessage        *string
 	CustomSMSMessage          *string
 	SlackWebhookURL           *string
-	TelegramBotToken          *string
-	TelegramChatID            *string
+	TelegramChatID            *string // Linked via Telegram bot subscription flow
 	DiscordWebhookURL         *string
 	EventNotificationsEnabled bool
 	NotifyContactOnPayment    bool

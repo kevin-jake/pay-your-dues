@@ -121,7 +121,7 @@ func TestUserSettingsService_GetUserSettings(t *testing.T) {
 
 			// Create service
 			logger := zerolog.Nop()
-			service := services.NewUserSettingsService(mockSettingsRepo, mockUserRepo, logger)
+			service := services.NewUserSettingsService(mockSettingsRepo, mockUserRepo, nil, logger)
 
 			// Execute
 			ctx := context.Background()
@@ -219,8 +219,9 @@ func TestUserSettingsService_UpdateUserSettings(t *testing.T) {
 			name:   "update webhook configuration",
 			userID: userID,
 			request: &models.UpdateUserSettingsRequest{
-				TelegramBotToken: stringPtr("123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"),
-				TelegramChatID:   stringPtr("123456789"),
+				SlackWebhookURL:     stringPtr("https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX"),
+				DiscordWebhookURL:   stringPtr("https://discord.com/api/webhooks/123456789/abcdefghijklmnopqrstuvwxyz"),
+				NotificationWebhook: boolPtr(true),
 			},
 			setupMocks: func(settingsRepo *mocks.MockUserSettingsRepository, userRepo *mocks.MockUserRepository) {
 				user := &entities.User{
@@ -247,14 +248,14 @@ func TestUserSettingsService_UpdateUserSettings(t *testing.T) {
 				}
 				settingsRepo.On("GetOrCreate", mock.Anything, userID).Return(existingSettings, nil)
 
-				botToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
-				chatID := "123456789"
+				slackURL := "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX"
+				discordURL := "https://discord.com/api/webhooks/123456789/abcdefghijklmnopqrstuvwxyz"
 				updatedSettings := &models.UserSettings{
 					ID:                        settingsID,
 					UserID:                    userID,
 					NotificationEmail:         true,
 					NotificationSMS:           false,
-					NotificationWebhook:       false,
+					NotificationWebhook:       true,
 					NotificationReminderDays:  pq.Int64Array{7, 3, 1},
 					NotificationTime:          "09:00:00",
 					OverdueReminderFrequency:  "daily",
@@ -262,11 +263,11 @@ func TestUserSettingsService_UpdateUserSettings(t *testing.T) {
 					NotifyContactOnPayment:    true,
 					DefaultCurrency:           "Php",
 					Timezone:                  "UTC",
-					TelegramBotToken:          &botToken,
-					TelegramChatID:            &chatID,
+					SlackWebhookURL:           &slackURL,
+					DiscordWebhookURL:         &discordURL,
 				}
 				settingsRepo.On("Update", mock.Anything, mock.MatchedBy(func(s *models.UserSettings) bool {
-					return s.UserID == userID && s.TelegramBotToken != nil && *s.TelegramBotToken == botToken
+					return s.UserID == userID && s.SlackWebhookURL != nil && *s.SlackWebhookURL == slackURL
 				})).Return(nil).Run(func(args mock.Arguments) {
 					s := args.Get(1).(*models.UserSettings)
 					*s = *updatedSettings
@@ -276,10 +277,10 @@ func TestUserSettingsService_UpdateUserSettings(t *testing.T) {
 			validateResult: func(t *testing.T, settings *models.UserSettings) {
 				assert.NotNil(t, settings)
 				assert.Equal(t, userID, settings.UserID)
-				assert.NotNil(t, settings.TelegramBotToken)
-				assert.Equal(t, "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11", *settings.TelegramBotToken)
-				assert.NotNil(t, settings.TelegramChatID)
-				assert.Equal(t, "123456789", *settings.TelegramChatID)
+				assert.NotNil(t, settings.SlackWebhookURL)
+				assert.Equal(t, "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX", *settings.SlackWebhookURL)
+				assert.NotNil(t, settings.DiscordWebhookURL)
+				assert.Equal(t, "https://discord.com/api/webhooks/123456789/abcdefghijklmnopqrstuvwxyz", *settings.DiscordWebhookURL)
 			},
 		},
 		{
@@ -374,7 +375,7 @@ func TestUserSettingsService_UpdateUserSettings(t *testing.T) {
 
 			// Create service
 			logger := zerolog.Nop()
-			service := services.NewUserSettingsService(mockSettingsRepo, mockUserRepo, logger)
+			service := services.NewUserSettingsService(mockSettingsRepo, mockUserRepo, nil, logger)
 
 			// Execute
 			ctx := context.Background()

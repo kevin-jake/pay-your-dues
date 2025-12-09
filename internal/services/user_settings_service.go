@@ -104,14 +104,7 @@ func (s *userSettingsService) UpdateUserSettings(ctx context.Context, userID uui
 		settings.SlackWebhookURL = req.SlackWebhookURL
 		notificationSettingsChanged = true
 	}
-	if req.TelegramBotToken != nil {
-		settings.TelegramBotToken = req.TelegramBotToken
-		notificationSettingsChanged = true
-	}
-	if req.TelegramChatID != nil {
-		settings.TelegramChatID = req.TelegramChatID
-		notificationSettingsChanged = true
-	}
+	// Note: TelegramChatID is managed via the Telegram bot subscription flow
 	if req.DiscordWebhookURL != nil {
 		settings.DiscordWebhookURL = req.DiscordWebhookURL
 		notificationSettingsChanged = true
@@ -182,13 +175,13 @@ func (s *userSettingsService) updatePendingNotifications(userID uuid.UUID, setti
 	enabledTypes["email"] = settings.NotificationEmail
 	enabledTypes["sms"] = settings.NotificationSMS
 	
-	// Webhook types enabled based on webhook setting AND configured URLs
+	// Webhook types enabled based on webhook setting AND configured URLs/subscriptions
 	if settings.NotificationWebhook {
 		if settings.SlackWebhookURL != nil && *settings.SlackWebhookURL != "" {
 			enabledTypes["slack"] = true
 		}
-		if settings.TelegramBotToken != nil && *settings.TelegramBotToken != "" &&
-			settings.TelegramChatID != nil && *settings.TelegramChatID != "" {
+		// Telegram uses app-level bot token, only need chat ID (set via bot subscription)
+		if settings.TelegramChatID != nil && *settings.TelegramChatID != "" {
 			enabledTypes["telegram"] = true
 		}
 		if settings.DiscordWebhookURL != nil && *settings.DiscordWebhookURL != "" {

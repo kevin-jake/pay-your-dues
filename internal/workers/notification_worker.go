@@ -48,7 +48,7 @@ func NewNotificationWorker(
 ) *NotificationWorker {
 	emailSender := notification.NewEmailSender(cfg)
 	smsSender := notification.NewSMSSender(cfg)
-	webhookService := notification.NewWebhookService()
+	webhookService := notification.NewWebhookService(cfg.TelegramBotToken) // Pass app-level bot token
 	templateEngine := notification.NewTemplateEngine()
 	contactFetcher := notification.NewContactFetcher(db, debtListRepo, contactRepo, userRepo)
 
@@ -391,9 +391,9 @@ func (w *NotificationWorker) sendTelegramNotification(
 	data notification.TemplateData,
 	userSettings *models.UserSettings,
 ) error {
-	// Check if Telegram is configured
+	// Check if Telegram is configured (app-level bot token + user's linked chat ID)
 	if !w.webhookService.IsWebhookConfigured("telegram", userSettings) {
-		return fmt.Errorf("telegram not configured. Please configure Telegram bot token and chat ID in user settings")
+		return fmt.Errorf("telegram not linked. Please subscribe via the Telegram bot to receive notifications")
 	}
 
 	return w.webhookService.SendNotification("telegram", userSettings, data)

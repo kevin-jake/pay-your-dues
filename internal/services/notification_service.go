@@ -52,7 +52,7 @@ func NewNotificationService(
 ) interfaces.NotificationService {
 	emailSender := notification.NewEmailSender(cfg)
 	smsSender := notification.NewSMSSender(cfg)
-	webhookService := notification.NewWebhookService()
+	webhookService := notification.NewWebhookService(cfg.TelegramBotToken) // Pass app-level Telegram bot token
 	templateEngine := notification.NewTemplateEngine()
 	
 	contactFetcher := notification.NewContactFetcher(
@@ -259,8 +259,8 @@ func (s *NotificationService) getEnabledNotificationTypes(settings *models.UserS
 		if settings.SlackWebhookURL != nil && *settings.SlackWebhookURL != "" {
 			types = append(types, "slack")
 		}
-		if settings.TelegramBotToken != nil && *settings.TelegramBotToken != "" && 
-		   settings.TelegramChatID != nil && *settings.TelegramChatID != "" {
+		// Telegram uses app-level bot token, only need chat ID (set via bot subscription)
+		if settings.TelegramChatID != nil && *settings.TelegramChatID != "" {
 			types = append(types, "telegram")
 		}
 		if settings.DiscordWebhookURL != nil && *settings.DiscordWebhookURL != "" {

@@ -288,12 +288,10 @@ func (suite *UserSettingsRepositoryTestSuite) TestUpdateWebhookConfigurations() 
 
 	// Update webhook configurations
 	slackURL := "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX"
-	telegramToken := "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11"
-	telegramChatID := "123456789"
+	telegramChatID := "123456789" // Set via Telegram bot subscription flow
 	discordURL := "https://discord.com/api/webhooks/123456789/abcdefghijklmnopqrstuvwxyz"
 
 	settings.SlackWebhookURL = &slackURL
-	settings.TelegramBotToken = &telegramToken
 	settings.TelegramChatID = &telegramChatID
 	settings.DiscordWebhookURL = &discordURL
 	settings.NotificationWebhook = true
@@ -307,8 +305,6 @@ func (suite *UserSettingsRepositoryTestSuite) TestUpdateWebhookConfigurations() 
 	suite.NoError(err)
 	suite.NotNil(retrieved.SlackWebhookURL)
 	suite.Equal(slackURL, *retrieved.SlackWebhookURL)
-	suite.NotNil(retrieved.TelegramBotToken)
-	suite.Equal(telegramToken, *retrieved.TelegramBotToken)
 	suite.NotNil(retrieved.TelegramChatID)
 	suite.Equal(telegramChatID, *retrieved.TelegramChatID)
 	suite.NotNil(retrieved.DiscordWebhookURL)

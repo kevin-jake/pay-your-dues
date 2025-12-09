@@ -216,6 +216,7 @@ export const SettingsPage = () => {
             isSaving={isSaving}
             validationErrors={validationErrors}
             onSave={handleNotificationSettingsSave}
+            onRefreshSettings={() => fetchUserSettings()}
           />
         )}
 

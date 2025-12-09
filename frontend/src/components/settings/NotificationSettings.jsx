@@ -11,12 +11,14 @@ export const NotificationSettings = ({
   isSaving,
   validationErrors,
   onSave,
+  onRefreshSettings,
 }) => {
   // Map backend settings to frontend notification format for UI
   const notifications = mapNotificationPreferences(userSettings)
   const [localNotifications, setLocalNotifications] = useState(notifications)
 
   // Local state for pending changes
+  // Note: telegramChatId is managed via Telegram bot subscription, not directly editable
   const [pendingChanges, setPendingChanges] = useState({
     notificationEmail: userSettings?.notificationEmail ?? true,
     notificationSms: userSettings?.notificationSms ?? false,
@@ -25,8 +27,6 @@ export const NotificationSettings = ({
     notifyContactOnPayment: userSettings?.notifyContactOnPayment ?? true,
     notificationRecipient: userSettings?.notificationRecipient || 'both',
     slackWebhookUrl: userSettings?.slackWebhookUrl || '',
-    telegramBotToken: userSettings?.telegramBotToken || '',
-    telegramChatId: userSettings?.telegramChatId || '',
     discordWebhookUrl: userSettings?.discordWebhookUrl || '',
     notificationReminderDays: userSettings?.notificationReminderDays || [7, 3, 1],
     notificationTime: userSettings?.notificationTime || '09:00:00',
@@ -49,8 +49,6 @@ export const NotificationSettings = ({
         notifyContactOnPayment: userSettings.notifyContactOnPayment ?? true,
         notificationRecipient: userSettings.notificationRecipient || 'both',
         slackWebhookUrl: userSettings.slackWebhookUrl || '',
-        telegramBotToken: userSettings.telegramBotToken || '',
-        telegramChatId: userSettings.telegramChatId || '',
         discordWebhookUrl: userSettings.discordWebhookUrl || '',
         notificationReminderDays: userSettings.notificationReminderDays || [7, 3, 1],
         notificationTime: userSettings.notificationTime || '09:00:00',
@@ -108,8 +106,6 @@ export const NotificationSettings = ({
       pendingChanges.notifyContactOnPayment !== (userSettings.notifyContactOnPayment ?? true) ||
       pendingChanges.notificationRecipient !== (userSettings.notificationRecipient || 'both') ||
       pendingChanges.slackWebhookUrl !== (userSettings.slackWebhookUrl || '') ||
-      pendingChanges.telegramBotToken !== (userSettings.telegramBotToken || '') ||
-      pendingChanges.telegramChatId !== (userSettings.telegramChatId || '') ||
       pendingChanges.discordWebhookUrl !== (userSettings.discordWebhookUrl || '') ||
       JSON.stringify(pendingChanges.notificationReminderDays) !==
         JSON.stringify(userSettings.notificationReminderDays || [7, 3, 1]) ||
@@ -148,10 +144,10 @@ export const NotificationSettings = ({
     )
   }
 
+  // telegramChatId comes from userSettings (set via bot subscription flow)
   const webhookInputs = {
     slackWebhookUrl: pendingChanges.slackWebhookUrl,
-    telegramBotToken: pendingChanges.telegramBotToken,
-    telegramChatId: pendingChanges.telegramChatId,
+    telegramChatId: userSettings?.telegramChatId || '',
     discordWebhookUrl: pendingChanges.discordWebhookUrl,
   }
 
@@ -318,6 +314,7 @@ export const NotificationSettings = ({
           webhookEnabled={pendingChanges.notificationWebhook}
           onWebhookToggle={handleWebhookToggle}
           onInputChange={handleWebhookInputChange}
+          onRefreshSettings={onRefreshSettings}
           isSaving={isSaving}
           validationErrors={validationErrors}
         />

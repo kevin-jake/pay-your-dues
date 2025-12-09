@@ -108,6 +108,28 @@ class ApiClient {
     return response
   }
 
+  // Telegram Subscription methods
+  async getTelegramStatus() {
+    const response = await this.request('/settings/telegram/status', {
+      method: 'GET',
+    })
+    return response
+  }
+
+  async generateTelegramLinkCode() {
+    const response = await this.request('/settings/telegram/link', {
+      method: 'POST',
+    })
+    return response
+  }
+
+  async unlinkTelegram() {
+    const response = await this.request('/settings/telegram/link', {
+      method: 'DELETE',
+    })
+    return response
+  }
+
   // Contact Management methods
   async createContact(contactData) {
     const response = await this.request('/contacts', {

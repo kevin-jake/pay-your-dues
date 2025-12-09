@@ -112,6 +112,14 @@ func main() {
 	// Initialize user settings service
 	userSettingsService := services.NewUserSettingsService(userSettingsRepo, userRepo, notificationRepo, logger)
 
+	// Initialize Telegram subscription service (for bot-based subscription flow)
+	telegramSubscriptionService := services.NewTelegramSubscriptionService(
+		userSettingsRepo,
+		userRepo,
+		notificationConfig.TelegramBotToken,
+		logger,
+	)
+
 	// Initialize auth service with all dependencies
 	authService, err := services.NewAuthService(userRepo, contactService, userSettingsService, cfg.JWTSecret, cfg.JWTExpiry)
 	if err != nil {
@@ -124,6 +132,7 @@ func main() {
 	debtHandler := handlers.NewDebtHandler(debtService, s3Service, logger)
 	notificationHandler := handlers.NewNotificationHandler(notificationService, logger)
 	userSettingsHandler := handlers.NewUserSettingsHandler(userSettingsService, logger)
+	telegramHandler := handlers.NewTelegramHandler(telegramSubscriptionService, notificationConfig.TelegramWebhookSecret, logger)
 
 	// Initialize middleware
 	authMiddleware := middleware.NewAuthMiddleware(authService, logger)
@@ -152,6 +161,9 @@ func main() {
 			"timestamp": time.Now(),
 		})
 	})
+
+	// Telegram webhook endpoint (public, called by Telegram servers)
+	router.POST("/api/telegram/webhook", telegramHandler.HandleWebhook)
 
 	// API routes
 	apiV1 := router.Group("/api/v1")
@@ -240,6 +252,11 @@ func main() {
 			{
 				settings.GET("", userSettingsHandler.GetUserSettings)
 				settings.PUT("", userSettingsHandler.UpdateUserSettings)
+
+				// Telegram subscription routes
+				settings.GET("/telegram/status", telegramHandler.GetTelegramStatus)
+				settings.POST("/telegram/link", telegramHandler.GenerateLinkCode)
+				settings.DELETE("/telegram/link", telegramHandler.UnlinkTelegram)
 			}
 
 			// Additional analytics routes
@@ -265,6 +282,21 @@ func main() {
 		notificationWorker.Stop()
 		logger.Info().Msg("Notification worker stopped")
 	}()
+
+	// Start Telegram long polling if configured (for development without a domain)
+	if notificationConfig.TelegramPollingMode && notificationConfig.TelegramBotToken != "" {
+		if err := telegramSubscriptionService.StartLongPolling(); err != nil {
+			logger.Error().Err(err).Msg("Failed to start Telegram long polling")
+		} else {
+			logger.Info().Msg("Telegram long polling started (development mode)")
+			defer func() {
+				logger.Info().Msg("Stopping Telegram long polling...")
+				telegramSubscriptionService.StopLongPolling()
+			}()
+		}
+	} else if notificationConfig.TelegramBotToken != "" {
+		logger.Info().Msg("Telegram webhook mode enabled (set TELEGRAM_POLLING_MODE=true for development)")
+	}
 
 	// Start server in a goroutine
 	go func() {

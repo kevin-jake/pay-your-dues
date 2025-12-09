@@ -22,10 +22,9 @@ type UserSettings struct {
 	CustomSMSMessage           *string       `json:"custom_sms_message"`
 	
 	// Webhook configurations
-	SlackWebhookURL     *string   `json:"slack_webhook_url"`
-	TelegramBotToken    *string   `json:"telegram_bot_token"`
-	TelegramChatID      *string   `json:"telegram_chat_id"`
-	DiscordWebhookURL   *string   `json:"discord_webhook_url"`
+	SlackWebhookURL   *string `json:"slack_webhook_url"`
+	TelegramChatID    *string `json:"telegram_chat_id"` // Linked via Telegram bot subscription flow
+	DiscordWebhookURL *string `json:"discord_webhook_url"`
 	
 	// Event notification settings
 	EventNotificationsEnabled bool   `json:"event_notifications_enabled" gorm:"default:true"`
@@ -42,21 +41,20 @@ type UserSettings struct {
 }
 
 type UpdateUserSettingsRequest struct {
-	NotificationEmail            *bool         `json:"notification_email"`
-	NotificationSMS              *bool         `json:"notification_sms"`
-	NotificationWebhook          *bool         `json:"notification_webhook"`
-	NotificationReminderDays     *pq.Int64Array `json:"notification_reminder_days"`
-	NotificationTime             *string       `json:"notification_time"`
-	OverdueReminderFrequency     *string       `json:"overdue_reminder_frequency"`
-	CustomEmailMessage           *string       `json:"custom_email_message"`
-	CustomSMSMessage             *string       `json:"custom_sms_message"`
-	SlackWebhookURL              *string       `json:"slack_webhook_url"`
-	TelegramBotToken             *string       `json:"telegram_bot_token"`
-	TelegramChatID               *string       `json:"telegram_chat_id"`
-	DiscordWebhookURL            *string       `json:"discord_webhook_url"`
-	EventNotificationsEnabled    *bool         `json:"event_notifications_enabled"`
-	NotifyContactOnPayment       *bool         `json:"notify_contact_on_payment"`
-	NotificationRecipient        *string       `json:"notification_recipient"` // 'user', 'contact', or 'both'
-	DefaultCurrency              *string       `json:"default_currency"`
-	Timezone                     *string       `json:"timezone"`
+	NotificationEmail         *bool          `json:"notification_email"`
+	NotificationSMS           *bool          `json:"notification_sms"`
+	NotificationWebhook       *bool          `json:"notification_webhook"`
+	NotificationReminderDays  *pq.Int64Array `json:"notification_reminder_days"`
+	NotificationTime          *string        `json:"notification_time"`
+	OverdueReminderFrequency  *string        `json:"overdue_reminder_frequency"`
+	CustomEmailMessage        *string        `json:"custom_email_message"`
+	CustomSMSMessage          *string        `json:"custom_sms_message"`
+	SlackWebhookURL           *string        `json:"slack_webhook_url"`
+	// Note: TelegramChatID is set via the Telegram bot subscription flow, not directly
+	DiscordWebhookURL         *string `json:"discord_webhook_url"`
+	EventNotificationsEnabled *bool   `json:"event_notifications_enabled"`
+	NotifyContactOnPayment    *bool   `json:"notify_contact_on_payment"`
+	NotificationRecipient     *string `json:"notification_recipient"` // 'user', 'contact', or 'both'
+	DefaultCurrency           *string `json:"default_currency"`
+	Timezone                  *string `json:"timezone"`
 } 

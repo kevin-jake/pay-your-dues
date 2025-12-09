@@ -28,8 +28,7 @@ export const transformBackendToFrontend = (backendSettings) => {
     customEmailMessage: backendSettings.custom_email_message || null,
     customSmsMessage: backendSettings.custom_sms_message || null,
     slackWebhookUrl: backendSettings.slack_webhook_url || null,
-    telegramBotToken: backendSettings.telegram_bot_token || null,
-    telegramChatId: backendSettings.telegram_chat_id || null,
+    telegramChatId: backendSettings.telegram_chat_id || null, // Set via Telegram bot subscription
     discordWebhookUrl: backendSettings.discord_webhook_url || null,
     eventNotificationsEnabled: backendSettings.event_notifications_enabled ?? true,
     notifyContactOnPayment: backendSettings.notify_contact_on_payment ?? true,
@@ -79,12 +78,7 @@ export const transformFrontendToBackend = (frontendSettings) => {
   if (frontendSettings.slackWebhookUrl !== undefined) {
     transformed.slack_webhook_url = frontendSettings.slackWebhookUrl
   }
-  if (frontendSettings.telegramBotToken !== undefined) {
-    transformed.telegram_bot_token = frontendSettings.telegramBotToken
-  }
-  if (frontendSettings.telegramChatId !== undefined) {
-    transformed.telegram_chat_id = frontendSettings.telegramChatId
-  }
+  // Note: telegramChatId is managed via the Telegram bot subscription flow, not directly via API
   if (frontendSettings.discordWebhookUrl !== undefined) {
     transformed.discord_webhook_url = frontendSettings.discordWebhookUrl
   }
