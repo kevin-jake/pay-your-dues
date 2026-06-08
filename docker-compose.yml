@@ -15,6 +15,16 @@ services:
     networks:
       - pay-your-dues-network
 
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: pay-your-dues-rabbitmq
+    restart: unless-stopped
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    networks:
+      - pay-your-dues-network
+
   localstack:
     image: localstack/localstack:latest
     container_name: pay-your-dues-localstack

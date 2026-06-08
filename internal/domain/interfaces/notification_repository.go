@@ -41,6 +41,12 @@ type NotificationRepository interface {
 	// User-specific operations
 	GetPendingNotificationsByUserID(userID uuid.UUID) ([]*models.Notification, error)
 	UpdatePendingNotificationsByUserID(userID uuid.UUID, updates map[string]interface{}) error
+
+	// Queue scheduler operations
+	ClaimDueNotifications(beforeTime time.Time, limit int) ([]*models.Notification, error)
+	RevertToPending(id uuid.UUID) error
+	MarkQueued(id uuid.UUID) error
+	BatchSetEnabled(ids []uuid.UUID, enabled bool) error
 }
 
 // NotificationTemplateRepository defines the interface for notification template data access

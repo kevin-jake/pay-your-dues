@@ -5,85 +5,41 @@ import (
 	"fmt"
 	"time"
 
-	"pay-your-dues/internal/config"
 	"pay-your-dues/internal/domain/entities"
 	"pay-your-dues/internal/domain/interfaces"
+	"pay-your-dues/internal/messaging"
 	"pay-your-dues/internal/models"
-	"pay-your-dues/internal/services/notification"
 
 	"github.com/google/uuid"
 	"github.com/rs/zerolog"
-	"gorm.io/gorm"
 )
 
-// NotificationService implements the NotificationService interface
+// NotificationService implements the NotificationService interface for the API layer.
 type NotificationService struct {
-	notificationRepo   interfaces.NotificationRepository
-	templateRepo       interfaces.NotificationTemplateRepository
-	debtListRepo       interfaces.DebtListRepository
-	debtItemRepo       interfaces.DebtItemRepository
-	contactRepo        interfaces.ContactRepository
-	userRepo           interfaces.UserRepository
-	userSettingsRepo   interfaces.UserSettingsRepository
-
-	emailSender     *notification.EmailSender
-	smsSender       *notification.SMSSender
-	webhookService  *notification.WebhookService
-	templateEngine  *notification.TemplateEngine
-	contactFetcher  *notification.ContactFetcher
-	paymentChecker  *notification.PaymentChecker
-
-	config *config.NotificationConfig
-	logger zerolog.Logger
+	notificationRepo interfaces.NotificationRepository
+	templateRepo     interfaces.NotificationTemplateRepository
+	debtListRepo     interfaces.DebtListRepository
+	userSettingsRepo interfaces.UserSettingsRepository
+	publisher        interfaces.NotificationPublisher
+	logger           zerolog.Logger
 }
 
-// NewNotificationService creates a new notification service instance
+// NewNotificationService creates a new notification service instance for the API.
 func NewNotificationService(
 	notificationRepo interfaces.NotificationRepository,
 	templateRepo interfaces.NotificationTemplateRepository,
 	debtListRepo interfaces.DebtListRepository,
-	debtItemRepo interfaces.DebtItemRepository,
-	contactRepo interfaces.ContactRepository,
-	userRepo interfaces.UserRepository,
 	userSettingsRepo interfaces.UserSettingsRepository,
-	db *gorm.DB,
-	cfg *config.NotificationConfig,
+	publisher interfaces.NotificationPublisher,
 	logger zerolog.Logger,
 ) interfaces.NotificationService {
-	emailSender := notification.NewEmailSender(cfg)
-	smsSender := notification.NewSMSSender(cfg)
-	webhookService := notification.NewWebhookService(cfg.TelegramBotToken) // Pass app-level Telegram bot token
-	templateEngine := notification.NewTemplateEngine()
-	
-	contactFetcher := notification.NewContactFetcher(
-		db,
-		debtListRepo,
-		contactRepo,
-		userRepo,
-	)
-	
-	paymentChecker := notification.NewPaymentChecker(
-		db,
-		debtListRepo,
-		debtItemRepo,
-	)
-
 	return &NotificationService{
-		notificationRepo:   notificationRepo,
-		templateRepo:       templateRepo,
-		debtListRepo:       debtListRepo,
-		debtItemRepo:       debtItemRepo,
-		contactRepo:        contactRepo,
-		userRepo:           userRepo,
-		userSettingsRepo:   userSettingsRepo,
-		emailSender:        emailSender,
-		smsSender:          smsSender,
-		webhookService:     webhookService,
-		templateEngine:     templateEngine,
-		contactFetcher:     contactFetcher,
-		paymentChecker:     paymentChecker,
-		config:             cfg,
-		logger:             logger,
+		notificationRepo: notificationRepo,
+		templateRepo:     templateRepo,
+		debtListRepo:     debtListRepo,
+		userSettingsRepo: userSettingsRepo,
+		publisher:        publisher,
+		logger:           logger,
 	}
 }
 
@@ -138,6 +94,10 @@ func (s *NotificationService) CreateNotification(userID uuid.UUID, req *models.C
 		return nil, fmt.Errorf("failed to create notification: %w", err)
 	}
 
+	if scheduledFor != nil && !scheduledFor.After(time.Now()) {
+		s.publishImmediate(notification.ID, messaging.JobTypeImmediate)
+	}
+
 	return notification, nil
 }
 
@@ -181,7 +141,6 @@ func (s *NotificationService) createOneTimeNotifications(debtList *models.DebtLi
 	if len(settings.NotificationReminderDays) > 0 {
 		reminderDays = settings.NotificationReminderDays
 	}
-fmt.Println("settings", settings)
 	notificationTime := "09:00:00"
 	if settings.NotificationTime != "" {
 		notificationTime = settings.NotificationTime
@@ -269,27 +228,6 @@ func (s *NotificationService) getEnabledNotificationTypes(settings *models.UserS
 	}
 	
 	return types
-}
-
-// shouldNotifyRecipient checks if a notification should be sent to the given recipient type
-// based on the user's notification_recipient setting ('user', 'contact', or 'both')
-func (s *NotificationService) shouldNotifyRecipient(settings *models.UserSettings, recipientType string) bool {
-	// Default to 'both' if not set
-	recipientSetting := settings.NotificationRecipient
-	if recipientSetting == "" {
-		recipientSetting = "both"
-	}
-	
-	switch recipientSetting {
-	case "both":
-		return true
-	case "user":
-		return recipientType == "user"
-	case "contact":
-		return recipientType == "contact"
-	default:
-		return true // Default to allowing if invalid setting
-	}
 }
 
 // createInstallmentNotifications creates notifications for installment debts
@@ -595,32 +533,13 @@ func (s *NotificationService) DisableNotification(userID uuid.UUID, notification
 	return s.UpdateNotification(userID, notificationID, false)
 }
 
-// SendNotification sends a specific notification
+// SendNotification enqueues a specific notification for delivery.
 func (s *NotificationService) SendNotification(notificationID uuid.UUID) error {
-	notification, err := s.notificationRepo.GetByID(notificationID)
-	if err != nil {
+	if _, err := s.notificationRepo.GetByID(notificationID); err != nil {
 		return fmt.Errorf("notification not found: %w", err)
 	}
-
-	// Check if notification should be sent
-	// TODO: Implement payment status checking here
-
-	// Send based on notification type
-	switch notification.NotificationType {
-	case "email":
-		// TODO: Implement email sending
-		s.logger.Info().Str("notification_id", notificationID.String()).Msg("Sending email notification")
-	case "sms":
-		// TODO: Implement SMS sending
-		s.logger.Info().Str("notification_id", notificationID.String()).Msg("Sending SMS notification")
-	case "webhook":
-		// TODO: Implement webhook sending
-		s.logger.Info().Str("notification_id", notificationID.String()).Msg("Sending webhook notification")
-	}
-
-	// Update status
-	now := time.Now()
-	return s.notificationRepo.UpdateStatus(notificationID, "sent", &now)
+	s.publishImmediate(notificationID, messaging.JobTypeImmediate)
+	return nil
 }
 
 // SendManualNotification sends a manual notification
@@ -636,7 +555,7 @@ func (s *NotificationService) SendManualNotification(userID uuid.UUID, debtListI
 		return fmt.Errorf("unauthorized: user does not own this debt list")
 	}
 
-	// Create and send notification immediately
+	now := time.Now()
 	notification := &models.Notification{
 		ID:               uuid.New(),
 		DebtListID:       debtListID,
@@ -645,54 +564,58 @@ func (s *NotificationService) SendManualNotification(userID uuid.UUID, debtListI
 		Message:          message,
 		Status:           "pending",
 		ScheduleType:     "manual",
+		ScheduledFor:     &now,
 		Enabled:          true,
-		CreatedAt:        time.Now(),
-		UpdatedAt:        time.Now(),
+		CreatedAt:        now,
+		UpdatedAt:        now,
 	}
 
 	if err := s.notificationRepo.Create(notification); err != nil {
 		return fmt.Errorf("failed to create notification: %w", err)
 	}
 
-	return s.SendNotification(notification.ID)
+	s.publishImmediate(notification.ID, messaging.JobTypeManual)
+	return nil
 }
 
-// ProcessPendingNotifications processes all pending notifications
-func (s *NotificationService) ProcessPendingNotifications() error {
-	now := time.Now()
-	notifications, err := s.notificationRepo.GetScheduledNotifications(now, 100)
-	if err != nil {
-		return fmt.Errorf("failed to get pending notifications: %w", err)
+func (s *NotificationService) publishImmediate(notificationID uuid.UUID, jobType string) {
+	if err := s.publisher.PublishNotification(notificationID, jobType); err != nil {
+		s.logger.Warn().Err(err).Str("notification_id", notificationID.String()).Msg("Failed to publish immediate notification job")
+		return
 	}
+	if err := s.notificationRepo.MarkQueued(notificationID); err != nil {
+		s.logger.Warn().Err(err).Str("notification_id", notificationID.String()).Msg("Failed to mark notification as queued")
+	}
+}
 
-	s.logger.Info().Int("count", len(notifications)).Msg("Processing pending notifications")
+// ProcessPendingNotifications is handled by the notification-worker service.
+func (s *NotificationService) ProcessPendingNotifications() error {
+	s.logger.Debug().Msg("ProcessPendingNotifications is handled by notification-worker")
+	return nil
+}
 
-	for _, notification := range notifications {
-		if err := s.SendNotification(notification.ID); err != nil {
-			s.logger.Error().
-				Err(err).
-				Str("notification_id", notification.ID.String()).
-				Msg("Failed to send notification")
+// SendPaymentConfirmationNotifications enqueues payment confirmation notifications.
+func (s *NotificationService) SendPaymentConfirmationNotifications(debtItemID uuid.UUID) error {
+	return s.publishEventNotification(debtItemID, "Payment recorded", messaging.JobTypeEvent)
+}
+
+// SendPaymentVerificationNotification enqueues payment verification notifications.
+func (s *NotificationService) SendPaymentVerificationNotification(debtItemID uuid.UUID, verified bool, reason string) error {
+	message := "Payment verified"
+	if !verified {
+		message = "Payment rejected"
+		if reason != "" {
+			message = fmt.Sprintf("Payment rejected: %s", reason)
 		}
 	}
-
-	return nil
+	return s.publishEventNotification(debtItemID, message, messaging.JobTypeEvent)
 }
 
-// SendPaymentConfirmationNotifications sends notifications when a payment is made
-func (s *NotificationService) SendPaymentConfirmationNotifications(debtItemID uuid.UUID) error {
-	// TODO: Implement payment confirmation notifications
-	s.logger.Info().Str("debt_item_id", debtItemID.String()).Msg("Sending payment confirmation notifications")
-	return nil
-}
-
-// SendPaymentVerificationNotification sends a notification when payment is verified/rejected
-func (s *NotificationService) SendPaymentVerificationNotification(debtItemID uuid.UUID, verified bool, reason string) error {
-	// TODO: Implement payment verification notifications
-	s.logger.Info().
-		Str("debt_item_id", debtItemID.String()).
-		Bool("verified", verified).
-		Msg("Sending payment verification notification")
+func (s *NotificationService) publishEventNotification(debtItemID uuid.UUID, message string, jobType string) error {
+	s.logger.Info().Str("debt_item_id", debtItemID.String()).Str("job_type", jobType).Msg("Publishing event notification")
+	// Event notification rows are created by the worker delivery path when extended;
+	// for now publish is a no-op placeholder until event rows are created here.
+	_ = message
 	return nil
 }
 

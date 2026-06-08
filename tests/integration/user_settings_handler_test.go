@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -13,6 +14,7 @@ import (
 	"github.com/rs/zerolog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 
@@ -317,14 +319,19 @@ func TestUserSettingsHandler_Integration(t *testing.T) {
 
 	// Setup in-memory database
 	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	assert.NoError(t, err)
+	if err != nil {
+		if strings.Contains(err.Error(), "CGO_ENABLED=0") {
+			t.Skip("SQLite integration test requires CGO (install gcc and run with CGO_ENABLED=1)")
+		}
+		require.NoError(t, err)
+	}
 
 	// Auto-migrate
 	err = db.AutoMigrate(
 		&models.User{},
 		&models.UserSettings{},
 	)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 
 	// Create user
 	userID := uuid.New()
@@ -340,7 +347,7 @@ func TestUserSettingsHandler_Integration(t *testing.T) {
 	userRepo := repository.NewUserRepositoryGORM(db)
 	settingsRepo := repository.NewUserSettingsRepositoryGORM(db)
 	logger := zerolog.Nop()
-	settingsService := services.NewUserSettingsService(settingsRepo, userRepo, logger)
+	settingsService := services.NewUserSettingsService(settingsRepo, userRepo, nil, logger)
 	handler := handlers.NewUserSettingsHandler(settingsService, logger)
 
 	// Test GET - should create default settings
@@ -362,11 +369,12 @@ func TestUserSettingsHandler_Integration(t *testing.T) {
 	assert.Equal(t, "User settings retrieved successfully", getResponse["message"])
 
 	// Test PUT - update settings
+	slackURL := "https://hooks.slack.com/services/T00000000/B00000000/XXXXXXXXXXXXXXXXXXXXXXXX"
 	updateBody := map[string]interface{}{
-		"notification_email": false,
+		"notification_email":  false,
 		"notification_sms":    true,
-		"telegram_bot_token":  "123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11",
-		"telegram_chat_id":     "123456789",
+		"notification_webhook": true,
+		"slack_webhook_url":   slackURL,
 	}
 	requestBody, _ := json.Marshal(updateBody)
 
@@ -391,6 +399,9 @@ func TestUserSettingsHandler_Integration(t *testing.T) {
 	assert.True(t, ok)
 	assert.False(t, data["notification_email"].(bool))
 	assert.True(t, data["notification_sms"].(bool))
-	assert.NotNil(t, data["telegram_bot_token"])
+	assert.True(t, data["notification_webhook"].(bool))
+	assert.Equal(t, slackURL, data["slack_webhook_url"])
+	// Telegram chat ID is linked via the bot subscription flow, not the settings PUT endpoint
+	assert.Nil(t, data["telegram_chat_id"])
 }
 

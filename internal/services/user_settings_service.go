@@ -195,58 +195,46 @@ func (s *userSettingsService) updatePendingNotifications(userID uuid.UUID, setti
 		recipientSetting = "both"
 	}
 
-	// Update each pending notification
-	updatedCount := 0
-	disabledCount := 0
+	var enableIDs []uuid.UUID
+	var disableIDs []uuid.UUID
+
 	for _, notif := range pendingNotifications {
 		shouldEnable := true
 
-		// Check if notification type is still enabled
-		if enabled, exists := enabledTypes[notif.NotificationType]; exists {
-			if !enabled {
-				shouldEnable = false
-			}
+		if enabled, exists := enabledTypes[notif.NotificationType]; exists && !enabled {
+			shouldEnable = false
 		}
-
-		// Check if event notifications are enabled (for event-type notifications)
 		if notif.ScheduleType == "event" && !settings.EventNotificationsEnabled {
 			shouldEnable = false
 		}
-
-		// Check recipient type against settings
-		if recipientSetting != "both" {
-			if notif.RecipientType != recipientSetting {
-				shouldEnable = false
-			}
+		if recipientSetting != "both" && notif.RecipientType != recipientSetting {
+			shouldEnable = false
 		}
-
-		// Check notify contact setting
 		if notif.RecipientType == "contact" && !settings.NotifyContactOnPayment {
 			shouldEnable = false
 		}
 
-		// Update notification enabled status
-		if notif.Enabled != shouldEnable {
-			if shouldEnable {
-				if err := s.notificationRepo.EnableNotification(notif.ID); err != nil {
-					s.logger.Error().Err(err).Str("notification_id", notif.ID.String()).Msg("Failed to enable notification")
-					continue
-				}
-			} else {
-				if err := s.notificationRepo.DisableNotification(notif.ID); err != nil {
-					s.logger.Error().Err(err).Str("notification_id", notif.ID.String()).Msg("Failed to disable notification")
-					continue
-				}
-				disabledCount++
-			}
-			updatedCount++
+		if notif.Enabled == shouldEnable {
+			continue
 		}
+		if shouldEnable {
+			enableIDs = append(enableIDs, notif.ID)
+		} else {
+			disableIDs = append(disableIDs, notif.ID)
+		}
+	}
+
+	if err := s.notificationRepo.BatchSetEnabled(enableIDs, true); err != nil {
+		return fmt.Errorf("failed to batch enable notifications: %w", err)
+	}
+	if err := s.notificationRepo.BatchSetEnabled(disableIDs, false); err != nil {
+		return fmt.Errorf("failed to batch disable notifications: %w", err)
 	}
 
 	s.logger.Info().
 		Int("total_pending", len(pendingNotifications)).
-		Int("updated", updatedCount).
-		Int("disabled", disabledCount).
+		Int("enabled", len(enableIDs)).
+		Int("disabled", len(disableIDs)).
 		Str("user_id", userID.String()).
 		Msg("Pending notifications processed")
 

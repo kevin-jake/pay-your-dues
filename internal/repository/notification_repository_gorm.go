@@ -320,6 +320,64 @@ func (r *NotificationRepositoryGORM) GetPendingNotificationsByUserID(userID uuid
 	return notifications, nil
 }
 
+// ClaimDueNotifications atomically claims due notifications for the scheduler.
+func (r *NotificationRepositoryGORM) ClaimDueNotifications(beforeTime time.Time, limit int) ([]*models.Notification, error) {
+	var notifications []*models.Notification
+
+	err := r.db.Raw(`
+		WITH claimed AS (
+			SELECT id
+			FROM notifications
+			WHERE status = 'pending'
+				AND enabled = true
+				AND scheduled_for <= ?
+			ORDER BY scheduled_for ASC
+			LIMIT ?
+			FOR UPDATE SKIP LOCKED
+		)
+		UPDATE notifications n
+		SET status = 'queued', updated_at = NOW()
+		FROM claimed c
+		WHERE n.id = c.id
+		RETURNING n.*
+	`, beforeTime, limit).Scan(&notifications).Error
+	if err != nil {
+		return nil, err
+	}
+
+	return notifications, nil
+}
+
+// RevertToPending returns a claimed notification to pending after a publish failure.
+func (r *NotificationRepositoryGORM) RevertToPending(id uuid.UUID) error {
+	return r.db.Model(&models.Notification{}).
+		Where("id = ? AND status = 'queued'", id).
+		Updates(map[string]interface{}{
+			"status":     "pending",
+			"updated_at": time.Now(),
+		}).Error
+}
+
+// MarkQueued marks a notification as queued after a successful publish.
+func (r *NotificationRepositoryGORM) MarkQueued(id uuid.UUID) error {
+	return r.db.Model(&models.Notification{}).
+		Where("id = ? AND status = 'pending'", id).
+		Updates(map[string]interface{}{
+			"status":     "queued",
+			"updated_at": time.Now(),
+		}).Error
+}
+
+// BatchSetEnabled updates enabled flag for multiple notifications in one query.
+func (r *NotificationRepositoryGORM) BatchSetEnabled(ids []uuid.UUID, enabled bool) error {
+	if len(ids) == 0 {
+		return nil
+	}
+	return r.db.Model(&models.Notification{}).
+		Where("id IN ?", ids).
+		Update("enabled", enabled).Error
+}
+
 // UpdatePendingNotificationsByUserID updates all pending notifications for a user
 func (r *NotificationRepositoryGORM) UpdatePendingNotificationsByUserID(userID uuid.UUID, updates map[string]interface{}) error {
 	// Get all debt list IDs for this user

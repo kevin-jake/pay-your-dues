@@ -15,11 +15,12 @@ import (
 
 	"pay-your-dues/internal/config"
 	"pay-your-dues/internal/database"
+	"pay-your-dues/internal/domain/interfaces"
 	"pay-your-dues/internal/handlers"
 	"pay-your-dues/internal/middleware"
+	"pay-your-dues/internal/messaging"
 	"pay-your-dues/internal/repository"
 	"pay-your-dues/internal/services"
-	"pay-your-dues/internal/workers"
 )
 
 func main() {
@@ -81,32 +82,28 @@ func main() {
 		logger.Fatal().Err(err).Msg("Failed to initialize S3 service")
 	}
 	
-	// Initialize notification service (Phase 4)
 	notificationConfig := config.LoadNotificationConfig()
+	rabbitCfg := config.LoadRabbitMQConfig()
+
+	var notificationPublisher interfaces.NotificationPublisher
+	publisher, err := messaging.NewRabbitMQPublisher(rabbitCfg, logger)
+	if err != nil {
+		logger.Warn().Err(err).Msg("RabbitMQ unavailable, using no-op notification publisher")
+		notificationPublisher = messaging.NewNoOpPublisher()
+	} else {
+		notificationPublisher = publisher
+		defer publisher.Close()
+	}
+
 	notificationService := services.NewNotificationService(
 		notificationRepo,
 		notificationTemplateRepo,
 		debtListRepo,
-		debtItemRepo,
-		contactRepo,
-		userRepo,
 		userSettingsRepo,
-		db.DB,
-		notificationConfig,
+		notificationPublisher,
 		logger,
 	)
-	
-	// Initialize notification worker (Phase 5)
-	notificationWorker := workers.NewNotificationWorker(
-		notificationRepo,
-		debtListRepo,
-		contactRepo,
-		userRepo,
-		db.DB,
-		notificationConfig,
-		logger,
-	)
-	
+
 	debtService := services.NewDebtService(debtListRepo, debtItemRepo, contactRepo, paymentScheduleService, s3Service, notificationService)
 
 	// Initialize user settings service
@@ -272,30 +269,6 @@ func main() {
 		ReadTimeout:  30 * time.Second,
 		WriteTimeout: 30 * time.Second,
 		IdleTimeout:  120 * time.Second,
-	}
-
-	// Start notification worker (Phase 5)
-	notificationWorker.Start()
-	logger.Info().Msg("Notification worker started")
-	defer func() {
-		logger.Info().Msg("Stopping notification worker...")
-		notificationWorker.Stop()
-		logger.Info().Msg("Notification worker stopped")
-	}()
-
-	// Start Telegram long polling if configured (for development without a domain)
-	if notificationConfig.TelegramPollingMode && notificationConfig.TelegramBotToken != "" {
-		if err := telegramSubscriptionService.StartLongPolling(); err != nil {
-			logger.Error().Err(err).Msg("Failed to start Telegram long polling")
-		} else {
-			logger.Info().Msg("Telegram long polling started (development mode)")
-			defer func() {
-				logger.Info().Msg("Stopping Telegram long polling...")
-				telegramSubscriptionService.StopLongPolling()
-			}()
-		}
-	} else if notificationConfig.TelegramBotToken != "" {
-		logger.Info().Msg("Telegram webhook mode enabled (set TELEGRAM_POLLING_MODE=true for development)")
 	}
 
 	// Start server in a goroutine

@@ -75,6 +75,15 @@ func addNotificationIndexes(db *gorm.DB) error {
 		return err
 	}
 
+	// Partial index for queued notifications awaiting consumer delivery
+	if err := db.Exec(`
+		CREATE INDEX IF NOT EXISTS idx_notifications_queued
+		ON notifications(scheduled_for)
+		WHERE status = 'queued'
+	`).Error; err != nil {
+		return err
+	}
+
 	// Partial index for enabled next run
 	if err := db.Exec(`
 		CREATE INDEX IF NOT EXISTS idx_notifications_next_run_enabled
