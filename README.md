@@ -7,15 +7,16 @@ A comprehensive debt tracking application built with Go, PostgreSQL, and Gin fra
 - **User Authentication**: Secure JWT-based authentication
 - **Debt Management**: Track money you owe and money owed to you
 - **Multiple Debt Lists**: Organize debts into different categories
-- **Notifications**: Send reminders via email, SMS, or Facebook Messenger
+- **Notifications**: Send reminders via email, SMS, Slack, Telegram, and Discord (processed asynchronously via RabbitMQ)
 - **User Settings**: Customize notification preferences and default currency
 - **RESTful API**: Clean and well-documented API endpoints
 
 ## Tech Stack
 
-- **Backend**: Go 1.21+
+- **Backend**: Go 1.24+
 - **Framework**: Gin (HTTP web framework)
 - **Database**: PostgreSQL
+- **Message Queue**: RabbitMQ (notification delivery)
 - **Authentication**: JWT tokens
 - **Password Hashing**: bcrypt
 - **Logging**: Zerolog
@@ -23,9 +24,11 @@ A comprehensive debt tracking application built with Go, PostgreSQL, and Gin fra
 
 ## Prerequisites
 
-- Go 1.21 or higher
+- Go 1.24 or higher
 - PostgreSQL 12 or higher
-- Air (for development hot reloading)
+- RabbitMQ 3.x (for notification delivery)
+- Docker and Docker Compose (recommended for local PostgreSQL and RabbitMQ)
+- Air (optional, for API hot reloading)
 
 ## Installation
 
@@ -64,7 +67,7 @@ Copy the example environment file and update it with your settings:
 cp env.example .env
 ```
 
-Edit `.env` with your database credentials:
+Edit `.env` with your database, RabbitMQ, and notification settings. See `env.example` for the full list. Minimum required values:
 
 ```env
 DB_HOST=localhost
@@ -81,23 +84,74 @@ JWT_SECRET=your-secret-key-here
 JWT_EXPIRY=24h
 
 LOG_LEVEL=debug
+
+# RabbitMQ (required for notification delivery)
+RABBITMQ_URL=amqp://guest:guest@localhost:5672/
+
+# Notification worker health endpoint
+NOTIFICATION_WORKER_PORT=8081
 ```
 
 ## Running the Application
 
-### Development (with hot reloading)
+The app runs as **two Go processes**:
+
+| Process | Command | Purpose |
+|---------|---------|---------|
+| **API** | `cmd/server` | HTTP API, auth, debts, settings |
+| **Notification worker** | `cmd/notification-worker` | Schedules due reminders and delivers notifications via RabbitMQ |
+
+Both processes share the same PostgreSQL database and `.env` file.
+
+### 1. Start infrastructure (PostgreSQL + RabbitMQ)
+
+Using Docker Compose (see [README-docker.md](README-docker.md) for details):
+
+```bash
+docker compose up -d postgres rabbitmq
+```
+
+- PostgreSQL: `localhost:5432`
+- RabbitMQ AMQP: `localhost:5672`
+- RabbitMQ management UI: `http://localhost:15672` (guest / guest)
+
+### 2. Start the API server
+
+**Development (with hot reloading):**
 
 ```bash
 air
 ```
 
-### Production
+**Manual / production:**
 
 ```bash
 go run cmd/server/main.go
+# or
+go build -o bin/api ./cmd/server && ./bin/api
 ```
 
-The server will start on `http://localhost:8080`
+API: `http://localhost:8080`
+
+### 3. Start the notification worker
+
+In a **separate terminal**:
+
+```bash
+go run cmd/notification-worker/main.go
+# or
+go build -o bin/notification-worker ./cmd/notification-worker && ./bin/notification-worker
+```
+
+Worker health check: `http://localhost:8081/health`
+
+The worker:
+
+- Polls PostgreSQL for due `pending` notifications and publishes them to RabbitMQ
+- Consumes jobs from RabbitMQ and sends email, SMS, Slack, Telegram, and Discord notifications
+- Runs Telegram long polling in development when `TELEGRAM_POLLING_MODE=true`
+
+If RabbitMQ is unavailable, the API still starts but uses a no-op publisher (notifications are scheduled in the DB but not delivered until the worker is running).
 
 ## API Endpoints
 
@@ -126,8 +180,10 @@ The application uses the following main tables:
 
 ```
 ├── cmd/
-│   └── server/          # Main application entry point
+│   ├── server/              # API HTTP server
+│   └── notification-worker/ # Notification scheduler + RabbitMQ consumer
 ├── internal/
+│   ├── messaging/       # RabbitMQ publisher, consumer, topology
 │   ├── config/          # Configuration management
 │   ├── handlers/        # HTTP handlers
 │   ├── middleware/      # HTTP middleware
@@ -145,6 +201,8 @@ The application uses the following main tables:
 ```
 
 ### Running Tests
+
+SQLite-backed integration tests require CGO (`gcc` installed, `CGO_ENABLED=1`).
 
 ```bash
 go test ./...
