@@ -45,7 +45,7 @@ go mod download
 ### 3. Install Air (for development)
 
 ```bash
-go install github.com/cosmtrek/air@latest
+go install github.com/air-verse/air@latest
 ```
 
 ### 4. Set up PostgreSQL
