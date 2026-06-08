@@ -133,6 +133,14 @@ go build -o bin/api ./cmd/server && ./bin/api
 
 API: `http://localhost:8080`
 
+When `APP_ENV=development`, the API automatically loads `test-data.sql` on startup (skipped if already seeded). Demo accounts:
+
+| Email | Password | Notes |
+|-------|----------|-------|
+| `alice@dev.local` | `password123` | Primary demo user with 10 debt scenarios |
+| `bob@dev.local` | `password123` | Creditor with cross-user debts |
+| `carol@dev.local` | `devpassword` | SMS-focused custom settings |
+
 ### 3. Start the notification worker
 
 In a **separate terminal**:

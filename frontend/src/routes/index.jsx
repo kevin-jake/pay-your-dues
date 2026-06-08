@@ -26,6 +26,9 @@ const DebtsPage = lazy(() => import('@pages/DebtsPage').then((m) => ({ default: 
 const SettingsPage = lazy(() =>
   import('@pages/SettingsPage').then((m) => ({ default: m.SettingsPage }))
 )
+const NotificationsPage = lazy(() =>
+  import('@pages/NotificationsPage').then((m) => ({ default: m.NotificationsPage }))
+)
 
 // Placeholder component for pages not yet implemented
 const PlaceholderPage = ({ title }) => (
@@ -85,6 +88,14 @@ export const AppRoutes = () => {
           element={
             <ProtectedRoute>
               <DebtsPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path={ROUTES.NOTIFICATIONS}
+          element={
+            <ProtectedRoute>
+              <NotificationsPage />
             </ProtectedRoute>
           }
         />

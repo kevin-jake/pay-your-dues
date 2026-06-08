@@ -26,6 +26,7 @@ type DebtListRepository interface {
 	UpdatePaymentTotals(ctx context.Context, debtListID uuid.UUID, totalPaid, remaining decimal.Decimal) error
 	UpdateStatus(ctx context.Context, debtListID uuid.UUID, status string) error
 	UpdateNextPaymentDate(ctx context.Context, debtListID uuid.UUID, nextPaymentDate time.Time) error
+	UpdateNotificationSettings(ctx context.Context, debtListID uuid.UUID, updates map[string]interface{}) error
 }
 
 // DebtItemRepository defines the interface for debt item data access operations

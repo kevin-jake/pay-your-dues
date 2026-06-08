@@ -25,6 +25,8 @@ func TestNotificationService_SendManualNotification_PublishesJob(t *testing.T) {
 	logger := zerolog.Nop()
 
 	debtListRepo.On("BelongsToUser", mock.Anything, debtListID, userID).Return(true, nil)
+	// no sends yet
+	notificationRepo.On("CountManualNotificationsByDebtAndType", debtListID, "email").Return(int64(0), nil)
 	publisher.On("PublishNotification", mock.AnythingOfType("uuid.UUID"), messaging.JobTypeManual).Return(nil)
 
 	service := services.NewNotificationService(
@@ -97,6 +99,9 @@ func (m *mockNotificationRepo) CountNotificationsByDebtList(debtListID uuid.UUID
 func (m *mockNotificationRepo) GetPendingNotificationsByUserID(userID uuid.UUID) ([]*models.Notification, error) {
 	return nil, nil
 }
+func (m *mockNotificationRepo) GetUserNotifications(userID uuid.UUID, status string, debtListID *uuid.UUID, limit int) ([]*models.Notification, error) {
+	return nil, nil
+}
 func (m *mockNotificationRepo) UpdatePendingNotificationsByUserID(userID uuid.UUID, updates map[string]interface{}) error {
 	return nil
 }
@@ -107,4 +112,15 @@ func (m *mockNotificationRepo) RevertToPending(id uuid.UUID) error { return nil 
 func (m *mockNotificationRepo) MarkQueued(id uuid.UUID) error      { return nil }
 func (m *mockNotificationRepo) BatchSetEnabled(ids []uuid.UUID, enabled bool) error {
 	return nil
+}
+func (m *mockNotificationRepo) DeleteByDebtListID(debtListID uuid.UUID) error { return nil }
+func (m *mockNotificationRepo) DeleteByDebtListIDAndSlot(debtListID uuid.UUID, installmentNumber *int, scheduledFor time.Time) error {
+	return nil
+}
+func (m *mockNotificationRepo) DeleteReminderNotificationsByDebtList(debtListID uuid.UUID) error {
+	return nil
+}
+func (m *mockNotificationRepo) CountManualNotificationsByDebtAndType(debtListID uuid.UUID, notificationType string) (int64, error) {
+	args := m.Called(debtListID, notificationType)
+	return args.Get(0).(int64), args.Error(1)
 }

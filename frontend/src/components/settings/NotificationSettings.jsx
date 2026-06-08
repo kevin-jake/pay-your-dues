@@ -4,6 +4,7 @@ import { LoadingSpinner } from '@components/common/LoadingSpinner'
 import { NotificationToggle } from './NotificationToggle'
 import { WebhookConfiguration } from './WebhookConfiguration'
 import { NotificationSchedule } from './NotificationSchedule'
+import { TemplateVariableHints } from './TemplateVariableHints'
 
 export const NotificationSettings = ({
   userSettings,
@@ -29,7 +30,7 @@ export const NotificationSettings = ({
     slackWebhookUrl: userSettings?.slackWebhookUrl || '',
     discordWebhookUrl: userSettings?.discordWebhookUrl || '',
     notificationReminderDays: userSettings?.notificationReminderDays || [7, 3, 1],
-    notificationTime: userSettings?.notificationTime || '09:00:00',
+    notificationTime: userSettings?.notificationTime || '09:00',
     overdueReminderFrequency: userSettings?.overdueReminderFrequency || 'daily',
     customEmailMessage: userSettings?.customEmailMessage || '',
     customSmsMessage: userSettings?.customSmsMessage || '',
@@ -51,7 +52,7 @@ export const NotificationSettings = ({
         slackWebhookUrl: userSettings.slackWebhookUrl || '',
         discordWebhookUrl: userSettings.discordWebhookUrl || '',
         notificationReminderDays: userSettings.notificationReminderDays || [7, 3, 1],
-        notificationTime: userSettings.notificationTime || '09:00:00',
+        notificationTime: userSettings.notificationTime || '09:00',
         overdueReminderFrequency: userSettings.overdueReminderFrequency || 'daily',
         customEmailMessage: userSettings.customEmailMessage || '',
         customSmsMessage: userSettings.customSmsMessage || '',
@@ -109,7 +110,7 @@ export const NotificationSettings = ({
       pendingChanges.discordWebhookUrl !== (userSettings.discordWebhookUrl || '') ||
       JSON.stringify(pendingChanges.notificationReminderDays) !==
         JSON.stringify(userSettings.notificationReminderDays || [7, 3, 1]) ||
-      pendingChanges.notificationTime !== (userSettings.notificationTime || '09:00:00') ||
+      pendingChanges.notificationTime !== (userSettings.notificationTime || '09:00') ||
       pendingChanges.overdueReminderFrequency !==
         (userSettings.overdueReminderFrequency || 'daily') ||
       pendingChanges.customEmailMessage !== (userSettings.customEmailMessage || '') ||
@@ -226,6 +227,7 @@ export const NotificationSettings = ({
             <p className="mt-1 text-xs text-muted-foreground">
               Custom message template for email notifications (optional)
             </p>
+            <TemplateVariableHints />
           </div>
         )}
 
@@ -261,6 +263,7 @@ export const NotificationSettings = ({
               <p className="mt-1 text-xs text-muted-foreground">
                 Custom message template for SMS notifications (optional)
               </p>
+              <TemplateVariableHints />
             </div>
           )}
         </div>

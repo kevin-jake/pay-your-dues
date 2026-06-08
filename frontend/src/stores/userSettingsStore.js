@@ -24,7 +24,7 @@ const getDefaultSettings = () => ({
   notificationSms: false,
   notificationWebhook: false,
   notificationReminderDays: [7, 3, 1],
-  notificationTime: '09:00:00',
+  notificationTime: '09:00',
   overdueReminderFrequency: 'daily',
   customEmailMessage: null,
   customSmsMessage: null,

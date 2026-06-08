@@ -4,6 +4,7 @@ import { useDebtsStore } from '@stores/debtsStore'
 import { ImageViewerModal } from '@components/common/ImageViewerModal'
 import { PaymentHistory } from './PaymentHistory'
 import { InstallmentScheduleModal } from './InstallmentScheduleModal'
+import { DebtNotificationsPanel } from './DebtNotificationsPanel'
 import {
   formatCurrency,
   formatDate,
@@ -32,6 +33,7 @@ export const DebtDetailsModal = ({ debt, onClose, onEdit, onDelete }) => {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [viewingReceipt, setViewingReceipt] = useState(null)
   const [showSchedule, setShowSchedule] = useState(false)
+  const [activeTab, setActiveTab] = useState('details')
   const [nextPaymentInfo, setNextPaymentInfo] = useState(null)
   const [loadingSchedule, setLoadingSchedule] = useState(false)
 
@@ -186,7 +188,35 @@ export const DebtDetailsModal = ({ debt, onClose, onEdit, onDelete }) => {
           </div>
         </div>
 
+        <div className="border-b border-border px-6">
+          <div className="flex space-x-1">
+            <button
+              onClick={() => setActiveTab('details')}
+              className={`border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
+                activeTab === 'details'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Details
+            </button>
+            <button
+              onClick={() => setActiveTab('notifications')}
+              className={`border-b-2 px-4 py-3 text-sm font-medium transition-colors ${
+                activeTab === 'notifications'
+                  ? 'border-primary text-primary'
+                  : 'border-transparent text-muted-foreground hover:text-foreground'
+              }`}
+            >
+              Notifications
+            </button>
+          </div>
+        </div>
+
         <div className="p-6">
+          {activeTab === 'notifications' ? (
+            <DebtNotificationsPanel debt={debt} />
+          ) : (
           <div className="space-y-6">
             {/* Debt Type Badge */}
             <div className="flex items-center justify-between">
@@ -467,8 +497,10 @@ export const DebtDetailsModal = ({ debt, onClose, onEdit, onDelete }) => {
               </div>
             </div>
           </div>
+          )}
 
           {/* Action Buttons */}
+          {activeTab === 'details' && (
           <div className="mt-6 flex space-x-3">
             <button onClick={onEdit} className="btn-primary flex-1">
               <svg className="mr-2 h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -493,6 +525,7 @@ export const DebtDetailsModal = ({ debt, onClose, onEdit, onDelete }) => {
               Delete
             </button>
           </div>
+          )}
         </div>
       </div>
 

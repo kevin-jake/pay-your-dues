@@ -39,8 +39,15 @@ type NotificationRepository interface {
 	CountNotificationsByDebtList(debtListID uuid.UUID) (int64, error)
 
 	// User-specific operations
+	GetUserNotifications(userID uuid.UUID, status string, debtListID *uuid.UUID, limit int) ([]*models.Notification, error)
 	GetPendingNotificationsByUserID(userID uuid.UUID) ([]*models.Notification, error)
 	UpdatePendingNotificationsByUserID(userID uuid.UUID, updates map[string]interface{}) error
+
+	// Bulk debt-level operations
+	DeleteByDebtListID(debtListID uuid.UUID) error
+	DeleteByDebtListIDAndSlot(debtListID uuid.UUID, installmentNumber *int, scheduledFor time.Time) error
+	DeleteReminderNotificationsByDebtList(debtListID uuid.UUID) error
+	CountManualNotificationsByDebtAndType(debtListID uuid.UUID, notificationType string) (int64, error)
 
 	// Queue scheduler operations
 	ClaimDueNotifications(beforeTime time.Time, limit int) ([]*models.Notification, error)

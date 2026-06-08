@@ -58,15 +58,16 @@ type DebtItem struct {
 
 // CreateDebtListRequest represents a request to create a new debt list
 type CreateDebtListRequest struct {
-	ContactID        uuid.UUID  `json:"contact_id" validate:"required"`
-	DebtType         string     `json:"debt_type" validate:"required,oneof=to_receive to_pay"`
-	TotalAmount      string     `json:"total_amount" validate:"required"`
-	Currency         string     `json:"currency"`
-	DueDate          *time.Time `json:"due_date"`
-	InstallmentPlan  string     `json:"installment_plan" validate:"omitempty,oneof=onetime weekly biweekly monthly quarterly yearly"`
-	NumberOfPayments *int       `json:"number_of_payments"`
-	Description      *string    `json:"description"`
-	Notes            *string    `json:"notes"`
+	ContactID            uuid.UUID  `json:"contact_id" validate:"required"`
+	DebtType             string     `json:"debt_type" validate:"required,oneof=to_receive to_pay"`
+	TotalAmount          string     `json:"total_amount" validate:"required"`
+	Currency             string     `json:"currency"`
+	DueDate              *time.Time `json:"due_date"`
+	InstallmentPlan      string     `json:"installment_plan" validate:"omitempty,oneof=onetime weekly biweekly monthly quarterly yearly"`
+	NumberOfPayments     *int       `json:"number_of_payments"`
+	Description          *string    `json:"description"`
+	Notes                *string    `json:"notes"`
+	NotificationsEnabled *bool      `json:"notifications_enabled"` // nil = default true
 }
 
 // UpdateDebtListRequest represents a request to update a debt list

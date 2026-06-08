@@ -156,12 +156,20 @@ func (s *debtService) CreateDebtList(ctx context.Context, userID uuid.UUID, req 
 		return nil, fmt.Errorf("failed to create debt list: %w", err)
 	}
 
-	// Schedule notifications for the new debt list (async, don't fail if notifications fail)
-	if s.notificationService != nil {
+	// Schedule notifications unless the user explicitly disabled them at creation
+	notificationsEnabled := true
+	if req.NotificationsEnabled != nil {
+		notificationsEnabled = *req.NotificationsEnabled
+	}
+	if !notificationsEnabled && s.notificationService != nil {
+		// Persist the disabled flag on the just-created row
+		_ = s.debtListRepo.UpdateNotificationSettings(ctx, debtList.ID, map[string]interface{}{
+			"notifications_enabled": false,
+		})
+	}
+	if notificationsEnabled && s.notificationService != nil {
 		if err := s.notificationService.CreateNotificationsForDebtList(userID, debtList.ID); err != nil {
-			// Log error but don't fail the debt list creation
-			// TODO: Add proper logging here
-			_ = err // Suppress unused variable warning for now
+			_ = err // non-fatal
 		}
 	}
 

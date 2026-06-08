@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/shopspring/decimal"
 )
 
@@ -44,7 +45,17 @@ type DebtList struct {
 	Notes           *string       `json:"notes"`
 	CreatedAt       time.Time     `json:"created_at"`
 	UpdatedAt       time.Time     `json:"updated_at"`
-	
+
+	// Per-debt notification settings
+	NotificationsEnabled         bool          `json:"notifications_enabled" gorm:"default:true"`
+	NotificationReminderDays     pq.Int64Array `json:"notification_reminder_days" gorm:"type:integer[]"`
+	NotificationTime             *string       `json:"notification_time"`
+	NotifyEmail                  *bool         `json:"notify_email"`
+	NotifySMS                    *bool         `json:"notify_sms"`
+	NotifySlack                  *bool         `json:"notify_slack"`
+	NotifyTelegram               *bool         `json:"notify_telegram"`
+	NotifyDiscord                *bool         `json:"notify_discord"`
+
 	// Relationships
 	User      User        `json:"user,omitempty" gorm:"foreignKey:UserID"`
 	Contact   Contact     `json:"contact,omitempty" gorm:"foreignKey:ContactID"`

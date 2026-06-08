@@ -8,6 +8,23 @@ const getLocalTimezone = () => {
   }
 }
 
+// Normalize backend time (HH:MM:SS) to HTML time input format (HH:MM)
+const toTimeInputValue = (time) => {
+  if (!time) return '09:00'
+  const parts = time.split(':')
+  if (parts.length >= 2) {
+    return `${parts[0]}:${parts[1]}`
+  }
+  return time
+}
+
+// Normalize HTML time input (HH:MM) to backend format (HH:MM:SS)
+const toBackendTimeValue = (time) => {
+  if (!time) return '09:00:00'
+  if (time.split(':').length === 3) return time
+  return `${time}:00`
+}
+
 /**
  * Transforms backend response (snake_case) to frontend format (camelCase)
  * @param {Object} backendSettings - Settings object from backend API
@@ -23,7 +40,7 @@ export const transformBackendToFrontend = (backendSettings) => {
     notificationSms: backendSettings.notification_sms ?? false,
     notificationWebhook: backendSettings.notification_webhook ?? false,
     notificationReminderDays: backendSettings.notification_reminder_days || [7, 3, 1],
-    notificationTime: backendSettings.notification_time || '09:00:00',
+    notificationTime: toTimeInputValue(backendSettings.notification_time || '09:00:00'),
     overdueReminderFrequency: backendSettings.overdue_reminder_frequency || 'daily',
     customEmailMessage: backendSettings.custom_email_message || null,
     customSmsMessage: backendSettings.custom_sms_message || null,
@@ -64,7 +81,7 @@ export const transformFrontendToBackend = (frontendSettings) => {
     transformed.notification_reminder_days = frontendSettings.notificationReminderDays
   }
   if (frontendSettings.notificationTime !== undefined) {
-    transformed.notification_time = frontendSettings.notificationTime
+    transformed.notification_time = toBackendTimeValue(frontendSettings.notificationTime)
   }
   if (frontendSettings.overdueReminderFrequency !== undefined) {
     transformed.overdue_reminder_frequency = frontendSettings.overdueReminderFrequency

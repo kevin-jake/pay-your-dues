@@ -12,5 +12,6 @@ export const ROUTES = {
   DASHBOARD: '/dashboard',
   CONTACTS: '/contacts',
   DEBTS: '/debts',
+  NOTIFICATIONS: '/notifications',
   SETTINGS: '/settings',
 }

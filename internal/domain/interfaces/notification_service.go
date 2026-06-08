@@ -17,6 +17,7 @@ type NotificationService interface {
 
 	// Notification retrieval
 	GetNotification(userID uuid.UUID, notificationID uuid.UUID) (*models.Notification, error)
+	GetUserNotifications(userID uuid.UUID, status string, debtListID *uuid.UUID, limit int) ([]*models.Notification, error)
 	GetNotificationsByDebtList(userID uuid.UUID, debtListID uuid.UUID) ([]*models.Notification, error)
 	GetNotificationsByInstallment(userID uuid.UUID, debtListID uuid.UUID, installmentNumber int) ([]*models.Notification, error)
 
@@ -37,5 +38,12 @@ type NotificationService interface {
 
 	// Installment management
 	DisableNotificationsForPaidInstallment(debtListID uuid.UUID, installmentNumber int) error
+
+	// Debt-level schedule management
+	GetDebtNotificationSettings(userID uuid.UUID, debtListID uuid.UUID) (*models.DebtNotificationSettingsResponse, error)
+	EnableDebtNotifications(userID uuid.UUID, debtListID uuid.UUID, settings *models.CustomNotificationSettings) error
+	DisableDebtNotifications(userID uuid.UUID, debtListID uuid.UUID) error
+	DeleteNotificationSlot(userID uuid.UUID, debtListID uuid.UUID, installmentNumber *int, scheduledFor time.Time) error
+	GetManualSendLimits(userID uuid.UUID, debtListID uuid.UUID) (*models.ManualSendLimits, error)
 }
 

@@ -11,7 +11,9 @@ import (
 	"pay-your-dues/internal/models"
 
 	"github.com/google/uuid"
+	"github.com/lib/pq"
 	"github.com/rs/zerolog"
+	"gorm.io/gorm"
 )
 
 // NotificationService implements the NotificationService interface for the API layer.
@@ -21,6 +23,7 @@ type NotificationService struct {
 	debtListRepo     interfaces.DebtListRepository
 	userSettingsRepo interfaces.UserSettingsRepository
 	publisher        interfaces.NotificationPublisher
+	db               *gorm.DB
 	logger           zerolog.Logger
 }
 
@@ -39,6 +42,27 @@ func NewNotificationService(
 		debtListRepo:     debtListRepo,
 		userSettingsRepo: userSettingsRepo,
 		publisher:        publisher,
+		logger:           logger,
+	}
+}
+
+// NewNotificationServiceWithDB creates a notification service with direct DB access (needed for per-debt notification settings).
+func NewNotificationServiceWithDB(
+	notificationRepo interfaces.NotificationRepository,
+	templateRepo interfaces.NotificationTemplateRepository,
+	debtListRepo interfaces.DebtListRepository,
+	userSettingsRepo interfaces.UserSettingsRepository,
+	publisher interfaces.NotificationPublisher,
+	db *gorm.DB,
+	logger zerolog.Logger,
+) interfaces.NotificationService {
+	return &NotificationService{
+		notificationRepo: notificationRepo,
+		templateRepo:     templateRepo,
+		debtListRepo:     debtListRepo,
+		userSettingsRepo: userSettingsRepo,
+		publisher:        publisher,
+		db:               db,
 		logger:           logger,
 	}
 }
@@ -101,10 +125,11 @@ func (s *NotificationService) CreateNotification(userID uuid.UUID, req *models.C
 	return notification, nil
 }
 
-// CreateNotificationsForDebtList creates notifications for all installments of a debt list
+// CreateNotificationsForDebtList creates notifications for all installments of a debt list.
+// It respects per-debt notification overrides when available (via DB field).
 func (s *NotificationService) CreateNotificationsForDebtList(userID uuid.UUID, debtListID uuid.UUID) error {
 	ctx := context.Background()
-	
+
 	// Verify user owns the debt list
 	belongs, err := s.debtListRepo.BelongsToUser(ctx, debtListID, userID)
 	if err != nil {
@@ -114,25 +139,63 @@ func (s *NotificationService) CreateNotificationsForDebtList(userID uuid.UUID, d
 		return fmt.Errorf("unauthorized: user does not own this debt list")
 	}
 
-	// Get debt list details
-	debtList, err := s.debtListRepo.GetByID(ctx, debtListID)
+	// Fetch raw model to check NotificationsEnabled + per-debt overrides
+	debtModel, err := s.queryDebtListModel(debtListID)
 	if err != nil {
 		return fmt.Errorf("debt list not found: %w", err)
 	}
 
-	// Get user settings for notification preferences
+	if !debtModel.NotificationsEnabled {
+		s.logger.Info().Str("debt_list_id", debtListID.String()).Msg("Notifications disabled for this debt, skipping creation")
+		return nil
+	}
+
+	// Get user settings for fallback
 	userSettings, err := s.getUserSettings(userID)
 	if err != nil {
 		return fmt.Errorf("failed to get user settings: %w", err)
 	}
 
+	// Merge per-debt overrides into userSettings used for scheduling
+	mergedSettings := s.mergeDebtOverrides(debtModel, userSettings)
+
 	// If it's a one-time debt, create single notification
-	if debtList.InstallmentPlan == "onetime" {
-		return s.createOneTimeNotifications(s.entityToModelDebtList(debtList), userSettings)
+	if debtModel.InstallmentPlan == "onetime" {
+		return s.createOneTimeNotifications(debtModel, mergedSettings)
 	}
 
 	// For installment debts, create notifications for each installment
-	return s.createInstallmentNotifications(s.entityToModelDebtList(debtList), userSettings)
+	return s.createInstallmentNotifications(debtModel, mergedSettings)
+}
+
+// mergeDebtOverrides returns a copy of userSettings with per-debt fields applied where set
+func (s *NotificationService) mergeDebtOverrides(dl *models.DebtList, us *models.UserSettings) *models.UserSettings {
+	merged := *us // shallow copy
+	if len(dl.NotificationReminderDays) > 0 {
+		merged.NotificationReminderDays = dl.NotificationReminderDays
+	}
+	if dl.NotificationTime != nil {
+		merged.NotificationTime = *dl.NotificationTime
+	}
+	if dl.NotifyEmail != nil {
+		merged.NotificationEmail = *dl.NotifyEmail
+	}
+	if dl.NotifySMS != nil {
+		merged.NotificationSMS = *dl.NotifySMS
+	}
+	if dl.NotifySlack != nil || dl.NotifyTelegram != nil || dl.NotifyDiscord != nil {
+		// If any per-debt webhook toggle is set, use them; keep user webhook URLs
+		if dl.NotifySlack != nil && !*dl.NotifySlack {
+			merged.SlackWebhookURL = nil
+		}
+		if dl.NotifyTelegram != nil && !*dl.NotifyTelegram {
+			merged.TelegramChatID = nil
+		}
+		if dl.NotifyDiscord != nil && !*dl.NotifyDiscord {
+			merged.DiscordWebhookURL = nil
+		}
+	}
+	return &merged
 }
 
 // createOneTimeNotifications creates notifications for one-time debts
@@ -467,6 +530,14 @@ func (s *NotificationService) GetNotification(userID uuid.UUID, notificationID u
 	return notification, nil
 }
 
+// GetUserNotifications retrieves notifications for a user with optional filters
+func (s *NotificationService) GetUserNotifications(userID uuid.UUID, status string, debtListID *uuid.UUID, limit int) ([]*models.Notification, error) {
+	if limit <= 0 {
+		limit = 50
+	}
+	return s.notificationRepo.GetUserNotifications(userID, status, debtListID, limit)
+}
+
 // GetNotificationsByDebtList retrieves all notifications for a debt list
 func (s *NotificationService) GetNotificationsByDebtList(userID uuid.UUID, debtListID uuid.UUID) ([]*models.Notification, error) {
 	ctx := context.Background()
@@ -542,10 +613,10 @@ func (s *NotificationService) SendNotification(notificationID uuid.UUID) error {
 	return nil
 }
 
-// SendManualNotification sends a manual notification
+// SendManualNotification sends a manual notification (max 3 per channel per debt)
 func (s *NotificationService) SendManualNotification(userID uuid.UUID, debtListID uuid.UUID, message string, notificationType string) error {
 	ctx := context.Background()
-	
+
 	// Verify ownership
 	belongs, err := s.debtListRepo.BelongsToUser(ctx, debtListID, userID)
 	if err != nil {
@@ -553,6 +624,16 @@ func (s *NotificationService) SendManualNotification(userID uuid.UUID, debtListI
 	}
 	if !belongs {
 		return fmt.Errorf("unauthorized: user does not own this debt list")
+	}
+
+	// Enforce per-debt per-channel limit
+	const maxManual = 3
+	count, err := s.notificationRepo.CountManualNotificationsByDebtAndType(debtListID, notificationType)
+	if err != nil {
+		return fmt.Errorf("failed to check send limit: %w", err)
+	}
+	if count >= maxManual {
+		return fmt.Errorf("manual send limit reached for %s (max %d per debt)", notificationType, maxManual)
 	}
 
 	now := time.Now()
@@ -627,6 +708,237 @@ func (s *NotificationService) DisableNotificationsForPaidInstallment(debtListID 
 		Msg("Disabling notifications for paid installment")
 
 	return s.notificationRepo.DisableNotificationsForInstallment(debtListID, installmentNumber)
+}
+
+// GetDebtNotificationSettings returns the merged notification settings for a debt
+func (s *NotificationService) GetDebtNotificationSettings(userID uuid.UUID, debtListID uuid.UUID) (*models.DebtNotificationSettingsResponse, error) {
+	ctx := context.Background()
+
+	belongs, err := s.debtListRepo.BelongsToUser(ctx, debtListID, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to verify ownership: %w", err)
+	}
+	if !belongs {
+		return nil, fmt.Errorf("unauthorized: user does not own this debt list")
+	}
+
+	// Fetch raw GORM model so we can read per-debt overrides
+	debtModel, err := s.getDebtListModel(debtListID)
+	if err != nil {
+		return nil, err
+	}
+
+	userSettings, err := s.getUserSettings(userID)
+	if err != nil {
+		return nil, err
+	}
+
+	// Merge: per-debt overrides win; fall back to user settings
+	reminderDays := []int{7, 3, 1}
+	if len(debtModel.NotificationReminderDays) > 0 {
+		for _, d := range debtModel.NotificationReminderDays {
+			reminderDays = append([]int{}, reminderDays...)
+			_ = d
+		}
+		reminderDays = make([]int, len(debtModel.NotificationReminderDays))
+		for i, d := range debtModel.NotificationReminderDays {
+			reminderDays[i] = int(d)
+		}
+	} else if len(userSettings.NotificationReminderDays) > 0 {
+		reminderDays = make([]int, len(userSettings.NotificationReminderDays))
+		for i, d := range userSettings.NotificationReminderDays {
+			reminderDays[i] = int(d)
+		}
+	}
+
+	notifTime := userSettings.NotificationTime
+	if debtModel.NotificationTime != nil {
+		notifTime = *debtModel.NotificationTime
+	}
+
+	notifyEmail := userSettings.NotificationEmail
+	if debtModel.NotifyEmail != nil {
+		notifyEmail = *debtModel.NotifyEmail
+	}
+	notifySMS := userSettings.NotificationSMS
+	if debtModel.NotifySMS != nil {
+		notifySMS = *debtModel.NotifySMS
+	}
+	notifySlack := userSettings.NotificationWebhook && userSettings.SlackWebhookURL != nil && *userSettings.SlackWebhookURL != ""
+	if debtModel.NotifySlack != nil {
+		notifySlack = *debtModel.NotifySlack
+	}
+	notifyTelegram := userSettings.NotificationWebhook && userSettings.TelegramChatID != nil && *userSettings.TelegramChatID != ""
+	if debtModel.NotifyTelegram != nil {
+		notifyTelegram = *debtModel.NotifyTelegram
+	}
+	notifyDiscord := userSettings.NotificationWebhook && userSettings.DiscordWebhookURL != nil && *userSettings.DiscordWebhookURL != ""
+	if debtModel.NotifyDiscord != nil {
+		notifyDiscord = *debtModel.NotifyDiscord
+	}
+
+	return &models.DebtNotificationSettingsResponse{
+		NotificationsEnabled: debtModel.NotificationsEnabled,
+		Settings: models.CustomNotificationSettings{
+			ReminderDays:     reminderDays,
+			NotificationTime: notifTime,
+			NotifyEmail:      notifyEmail,
+			NotifySMS:        notifySMS,
+			NotifySlack:      notifySlack,
+			NotifyTelegram:   notifyTelegram,
+			NotifyDiscord:    notifyDiscord,
+		},
+	}, nil
+}
+
+// EnableDebtNotifications enables notifications for a debt with custom or default settings
+func (s *NotificationService) EnableDebtNotifications(userID uuid.UUID, debtListID uuid.UUID, settings *models.CustomNotificationSettings) error {
+	ctx := context.Background()
+
+	belongs, err := s.debtListRepo.BelongsToUser(ctx, debtListID, userID)
+	if err != nil {
+		return fmt.Errorf("failed to verify ownership: %w", err)
+	}
+	if !belongs {
+		return fmt.Errorf("unauthorized: user does not own this debt list")
+	}
+
+	// Delete existing reminder/overdue rows before recreating
+	if err := s.notificationRepo.DeleteReminderNotificationsByDebtList(debtListID); err != nil {
+		return fmt.Errorf("failed to clear existing reminders: %w", err)
+	}
+
+	// Persist per-debt settings on the debt_list row
+	updates := map[string]interface{}{
+		"notifications_enabled": true,
+	}
+	if settings != nil {
+		if len(settings.ReminderDays) > 0 {
+			days := make(pq.Int64Array, len(settings.ReminderDays))
+			for i, d := range settings.ReminderDays {
+				days[i] = int64(d)
+			}
+			updates["notification_reminder_days"] = days
+		}
+		if settings.NotificationTime != "" {
+			updates["notification_time"] = settings.NotificationTime
+		}
+		updates["notify_email"] = settings.NotifyEmail
+		updates["notify_sms"] = settings.NotifySMS
+		updates["notify_slack"] = settings.NotifySlack
+		updates["notify_telegram"] = settings.NotifyTelegram
+		updates["notify_discord"] = settings.NotifyDiscord
+	}
+	if err := s.debtListRepo.UpdateNotificationSettings(ctx, debtListID, updates); err != nil {
+		return fmt.Errorf("failed to save notification settings: %w", err)
+	}
+
+	// Recreate schedule using the stored (or default) settings
+	return s.CreateNotificationsForDebtList(userID, debtListID)
+}
+
+// DisableDebtNotifications bulk-deletes all notifications for a debt and sets the flag false
+func (s *NotificationService) DisableDebtNotifications(userID uuid.UUID, debtListID uuid.UUID) error {
+	ctx := context.Background()
+
+	belongs, err := s.debtListRepo.BelongsToUser(ctx, debtListID, userID)
+	if err != nil {
+		return fmt.Errorf("failed to verify ownership: %w", err)
+	}
+	if !belongs {
+		return fmt.Errorf("unauthorized: user does not own this debt list")
+	}
+
+	if err := s.notificationRepo.DeleteByDebtListID(debtListID); err != nil {
+		return fmt.Errorf("failed to delete notifications: %w", err)
+	}
+
+	return s.debtListRepo.UpdateNotificationSettings(ctx, debtListID, map[string]interface{}{
+		"notifications_enabled": false,
+	})
+}
+
+// DeleteNotificationSlot deletes all channel rows for a specific (installment, scheduledFor) slot
+func (s *NotificationService) DeleteNotificationSlot(userID uuid.UUID, debtListID uuid.UUID, installmentNumber *int, scheduledFor time.Time) error {
+	ctx := context.Background()
+
+	belongs, err := s.debtListRepo.BelongsToUser(ctx, debtListID, userID)
+	if err != nil {
+		return fmt.Errorf("failed to verify ownership: %w", err)
+	}
+	if !belongs {
+		return fmt.Errorf("unauthorized: user does not own this debt list")
+	}
+
+	return s.notificationRepo.DeleteByDebtListIDAndSlot(debtListID, installmentNumber, scheduledFor)
+}
+
+// GetManualSendLimits returns how many manual sends remain per channel for a debt
+func (s *NotificationService) GetManualSendLimits(userID uuid.UUID, debtListID uuid.UUID) (*models.ManualSendLimits, error) {
+	ctx := context.Background()
+
+	belongs, err := s.debtListRepo.BelongsToUser(ctx, debtListID, userID)
+	if err != nil {
+		return nil, fmt.Errorf("failed to verify ownership: %w", err)
+	}
+	if !belongs {
+		return nil, fmt.Errorf("unauthorized: user does not own this debt list")
+	}
+
+	const maxManual = 3
+
+	emailCount, err := s.notificationRepo.CountManualNotificationsByDebtAndType(debtListID, "email")
+	if err != nil {
+		return nil, err
+	}
+	smsCount, err := s.notificationRepo.CountManualNotificationsByDebtAndType(debtListID, "sms")
+	if err != nil {
+		return nil, err
+	}
+
+	emailRemaining := int64(maxManual) - emailCount
+	if emailRemaining < 0 {
+		emailRemaining = 0
+	}
+	smsRemaining := int64(maxManual) - smsCount
+	if smsRemaining < 0 {
+		smsRemaining = 0
+	}
+
+	return &models.ManualSendLimits{
+		Email: models.ChannelSendUsage{Used: emailCount, Remaining: emailRemaining},
+		SMS:   models.ChannelSendUsage{Used: smsCount, Remaining: smsRemaining},
+	}, nil
+}
+
+// getDebtListModel fetches the raw GORM model including per-debt notification override fields.
+func (s *NotificationService) getDebtListModel(debtListID uuid.UUID) (*models.DebtList, error) {
+	return s.queryDebtListModel(debtListID)
+}
+
+// queryDebtListModel fetches the raw GORM DebtList model, including per-debt notification fields.
+// Falls back gracefully when no DB is wired (returns a model with defaults).
+func (s *NotificationService) queryDebtListModel(debtListID uuid.UUID) (*models.DebtList, error) {
+	if s.db == nil {
+		// No direct DB — construct minimal model from entity (notification overrides will be zero-values)
+		entity, err := s.debtListRepo.GetByID(context.Background(), debtListID)
+		if err != nil {
+			return nil, err
+		}
+		return &models.DebtList{
+			ID:                   entity.ID,
+			UserID:               entity.UserID,
+			InstallmentPlan:      entity.InstallmentPlan,
+			NumberOfPayments:     entity.NumberOfPayments,
+			DueDate:              entity.DueDate,
+			NotificationsEnabled: true, // default
+		}, nil
+	}
+	var dl models.DebtList
+	if err := s.db.Where("id = ?", debtListID).First(&dl).Error; err != nil {
+		return nil, fmt.Errorf("debt list not found: %w", err)
+	}
+	return &dl, nil
 }
 
 // getUserSettings gets user settings or returns defaults

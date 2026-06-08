@@ -390,6 +390,85 @@ class ApiClient {
     return response
   }
 
+  // Notification methods
+  async getNotifications(params = {}) {
+    const searchParams = new URLSearchParams()
+    if (params.status) searchParams.set('status', params.status)
+    if (params.limit) searchParams.set('limit', String(params.limit))
+    if (params.debtListId) searchParams.set('debt_list_id', params.debtListId)
+
+    const query = searchParams.toString()
+    const endpoint = query ? `/notifications?${query}` : '/notifications'
+    return this.request(endpoint, { method: 'GET' })
+  }
+
+  async getNotificationsByDebtList(debtListId) {
+    return this.request(`/notifications/debt-lists/${debtListId}`, { method: 'GET' })
+  }
+
+  async getDebtNotificationSettings(debtListId) {
+    return this.request(`/notifications/debt-lists/${debtListId}/settings`, { method: 'GET' })
+  }
+
+  async enableDebtNotifications(debtListId, settings = null) {
+    return this.request(`/notifications/debt-lists/${debtListId}/schedule`, {
+      method: 'POST',
+      body: JSON.stringify({ settings }),
+    })
+  }
+
+  async disableDebtNotifications(debtListId) {
+    return this.request(`/notifications/debt-lists/${debtListId}/schedule`, { method: 'DELETE' })
+  }
+
+  async deleteNotificationSlot(debtListId, { installmentNumber, scheduledFor }) {
+    return this.request(`/notifications/debt-lists/${debtListId}/slots`, {
+      method: 'DELETE',
+      body: JSON.stringify({
+        installment_number: installmentNumber ?? null,
+        scheduled_for: scheduledFor,
+      }),
+    })
+  }
+
+  async getManualSendLimits(debtListId) {
+    return this.request(`/notifications/debt-lists/${debtListId}/send-limits`, { method: 'GET' })
+  }
+
+  async getNotification(id) {
+    return this.request(`/notifications/${id}`, { method: 'GET' })
+  }
+
+  async scheduleNotifications(debtListId) {
+    return this.request('/notifications/schedule', {
+      method: 'POST',
+      body: JSON.stringify({ debt_list_id: debtListId }),
+    })
+  }
+
+  async sendManualNotification({ debtListId, message, notificationType }) {
+    return this.request('/notifications/send', {
+      method: 'POST',
+      body: JSON.stringify({
+        debt_list_id: debtListId,
+        message,
+        notification_type: notificationType,
+      }),
+    })
+  }
+
+  async enableNotification(id) {
+    return this.request(`/notifications/${id}/enable`, { method: 'POST' })
+  }
+
+  async disableNotification(id) {
+    return this.request(`/notifications/${id}/disable`, { method: 'POST' })
+  }
+
+  async deleteNotification(id) {
+    return this.request(`/notifications/${id}`, { method: 'DELETE' })
+  }
+
   async getPaymentSchedule(debtId) {
     const response = await this.request(`/debts/${debtId}/schedule`)
     return response

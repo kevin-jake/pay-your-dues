@@ -96,6 +96,11 @@ func (m *MockDebtListRepository) UpdateNextPaymentDate(ctx context.Context, debt
 	return args.Error(0)
 }
 
+func (m *MockDebtListRepository) UpdateNotificationSettings(ctx context.Context, debtListID uuid.UUID, updates map[string]interface{}) error {
+	args := m.Called(ctx, debtListID, updates)
+	return args.Error(0)
+}
+
 func (m *MockDebtListRepository) GetDebtListsWhereUserIsContact(ctx context.Context, userID uuid.UUID) ([]entities.DebtListResponse, error) {
 	args := m.Called(ctx, userID)
 	if args.Get(0) == nil {

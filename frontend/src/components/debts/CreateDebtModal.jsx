@@ -14,6 +14,7 @@ export const CreateDebtModal = ({ onDebtCreated, onClose }) => {
   const [isSubmitting, setIsSubmitting] = useState(false)
   const [mouseDownOnOverlay, setMouseDownOnOverlay] = useState(false)
   const [showCreateContactModal, setShowCreateContactModal] = useState(false)
+  const [notificationsEnabled, setNotificationsEnabled] = useState(true)
 
   const {
     register,
@@ -77,6 +78,7 @@ export const CreateDebtModal = ({ onDebtCreated, onClose }) => {
         delete debtData.next_payment_date
       }
 
+      debtData.notifications_enabled = notificationsEnabled
       await createDebt(debtData)
       success('Debt created successfully')
       onDebtCreated()
@@ -281,6 +283,31 @@ export const CreateDebtModal = ({ onDebtCreated, onClose }) => {
               {errors.notes && (
                 <p className="mt-1 text-sm text-destructive">{errors.notes.message}</p>
               )}
+            </div>
+
+            {/* Notifications toggle */}
+            <div className="flex items-center justify-between rounded-lg border border-border p-4">
+              <div>
+                <p className="text-sm font-medium text-foreground">Enable payment reminders</p>
+                <p className="text-xs text-muted-foreground">
+                  Automatically schedule reminder notifications based on due dates
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setNotificationsEnabled((v) => !v)}
+                disabled={isSubmitting}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors disabled:cursor-not-allowed disabled:opacity-50 ${
+                  notificationsEnabled ? 'bg-primary' : 'bg-muted'
+                }`}
+                aria-label={notificationsEnabled ? 'Disable reminders' : 'Enable reminders'}
+              >
+                <span
+                  className={`inline-block h-4 w-4 transform rounded-full bg-white transition-transform shadow ${
+                    notificationsEnabled ? 'translate-x-6' : 'translate-x-1'
+                  }`}
+                />
+              </button>
             </div>
           </div>
 

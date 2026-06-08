@@ -65,4 +65,45 @@ type CreateNotificationRequest struct {
 	RecipientPhone       *string    `json:"recipient_phone,omitempty"`
 	ScheduledFor         *time.Time `json:"scheduled_for,omitempty"` // For manual testing
 	ScheduleType         string     `json:"schedule_type,omitempty"` // 'reminder', 'overdue', 'manual', 'event'
-} 
+}
+
+// CustomNotificationSettings holds per-debt notification schedule overrides
+type CustomNotificationSettings struct {
+	ReminderDays     []int  `json:"reminder_days"`     // e.g. [7, 3, 1]
+	NotificationTime string `json:"notification_time"` // e.g. "09:00"
+	NotifyEmail      bool   `json:"notify_email"`
+	NotifySMS        bool   `json:"notify_sms"`
+	NotifySlack      bool   `json:"notify_slack"`
+	NotifyTelegram   bool   `json:"notify_telegram"`
+	NotifyDiscord    bool   `json:"notify_discord"`
+}
+
+// DebtNotificationSettingsResponse is the merged view for the settings form
+type DebtNotificationSettingsResponse struct {
+	NotificationsEnabled bool                        `json:"notifications_enabled"`
+	Settings             CustomNotificationSettings  `json:"settings"`
+}
+
+// ChannelSendUsage holds usage and remaining for a single channel
+type ChannelSendUsage struct {
+	Used      int64 `json:"used"`
+	Remaining int64 `json:"remaining"`
+}
+
+// ManualSendLimits holds per-channel manual send usage for a debt
+type ManualSendLimits struct {
+	Email    ChannelSendUsage `json:"email"`
+	SMS      ChannelSendUsage `json:"sms"`
+}
+
+// DeleteNotificationSlotRequest is the body for deleting a slot's notifications
+type DeleteNotificationSlotRequest struct {
+	InstallmentNumber *int      `json:"installment_number"`
+	ScheduledFor      time.Time `json:"scheduled_for" binding:"required"`
+}
+
+// EnableDebtNotificationsRequest wraps debt_list_id + optional settings
+type EnableDebtNotificationsRequest struct {
+	DebtListID uuid.UUID                    `json:"debt_list_id" binding:"required"`
+	Settings   *CustomNotificationSettings  `json:"settings"`
+}

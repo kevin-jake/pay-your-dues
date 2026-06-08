@@ -226,13 +226,19 @@ func (r *NotificationRepositoryGORM) BelongsToUser(notificationID uuid.UUID, use
 	return count > 0, nil
 }
 
-// GetUserNotifications retrieves all notifications for a user
-func (r *NotificationRepositoryGORM) GetUserNotifications(userID uuid.UUID, limit int) ([]*models.Notification, error) {
+// GetUserNotifications retrieves notifications for a user with optional filters
+func (r *NotificationRepositoryGORM) GetUserNotifications(userID uuid.UUID, status string, debtListID *uuid.UUID, limit int) ([]*models.Notification, error) {
 	var notifications []*models.Notification
 	query := r.db.Joins("JOIN debt_lists ON notifications.debt_list_id = debt_lists.id").
 		Where("debt_lists.user_id = ?", userID).
 		Order("notifications.created_at DESC")
 
+	if status != "" {
+		query = query.Where("notifications.status = ?", status)
+	}
+	if debtListID != nil {
+		query = query.Where("notifications.debt_list_id = ?", *debtListID)
+	}
 	if limit > 0 {
 		query = query.Limit(limit)
 	}
@@ -398,5 +404,32 @@ func (r *NotificationRepositoryGORM) UpdatePendingNotificationsByUserID(userID u
 		Where("debt_list_id IN ? AND status = ? AND enabled = ?",
 			debtListIDs, "pending", true).
 		Updates(updates).Error
+}
+
+// DeleteByDebtListIDAndSlot deletes all notifications for a specific (installment, scheduled_for) slot
+func (r *NotificationRepositoryGORM) DeleteByDebtListIDAndSlot(debtListID uuid.UUID, installmentNumber *int, scheduledFor time.Time) error {
+	query := r.db.Where("debt_list_id = ? AND DATE(scheduled_for) = DATE(?)", debtListID, scheduledFor)
+	if installmentNumber != nil {
+		query = query.Where("installment_number = ?", *installmentNumber)
+	} else {
+		query = query.Where("installment_number IS NULL")
+	}
+	return query.Delete(&models.Notification{}).Error
+}
+
+// DeleteReminderNotificationsByDebtList deletes reminder and overdue notifications for a debt list
+func (r *NotificationRepositoryGORM) DeleteReminderNotificationsByDebtList(debtListID uuid.UUID) error {
+	return r.db.Where("debt_list_id = ? AND schedule_type IN ?", debtListID, []string{"reminder", "overdue"}).
+		Delete(&models.Notification{}).Error
+}
+
+// CountManualNotificationsByDebtAndType counts manual sends for a debt + channel
+func (r *NotificationRepositoryGORM) CountManualNotificationsByDebtAndType(debtListID uuid.UUID, notificationType string) (int64, error) {
+	var count int64
+	err := r.db.Model(&models.Notification{}).
+		Where("debt_list_id = ? AND notification_type = ? AND schedule_type = ?",
+			debtListID, notificationType, "manual").
+		Count(&count).Error
+	return count, err
 }
 

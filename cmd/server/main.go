@@ -63,6 +63,14 @@ func main() {
 
 	logger.Info().Msg("Database connected successfully")
 
+	if cfg.IsDevelopment() {
+		if err := database.SeedDevelopmentData(db.DB, os.Getenv("SEED_DATA_FILE")); err != nil {
+			logger.Fatal().Err(err).Msg("Failed to seed development data")
+		}
+	} else {
+		logger.Info().Str("app_env", cfg.AppEnv).Msg("Skipping development seed data")
+	}
+
 	// Initialize repositories
 	userRepo := repository.NewUserRepositoryGORM(db.DB)
 	contactRepo := repository.NewContactRepositoryGORM(db.DB)
@@ -95,12 +103,13 @@ func main() {
 		defer publisher.Close()
 	}
 
-	notificationService := services.NewNotificationService(
+	notificationService := services.NewNotificationServiceWithDB(
 		notificationRepo,
 		notificationTemplateRepo,
 		debtListRepo,
 		userSettingsRepo,
 		notificationPublisher,
+		db.DB,
 		logger,
 	)
 
@@ -231,17 +240,27 @@ func main() {
 			notifications := protected.Group("/notifications")
 			{
 				notifications.POST("", notificationHandler.CreateNotification)
+				notifications.GET("", notificationHandler.ListNotifications)
+				// Legacy schedule endpoint (kept for backward compat)
+				notifications.POST("/schedule", notificationHandler.ScheduleNotifications)
+				notifications.POST("/send", notificationHandler.SendManualNotificationHandler)
+
+				// Debt-list scoped operations (static paths before /:id)
+				debtListNotifs := notifications.Group("/debt-lists/:debt_list_id")
+				{
+					debtListNotifs.GET("", notificationHandler.GetNotificationsByDebtList)
+					debtListNotifs.GET("/settings", notificationHandler.GetDebtNotificationSettings)
+					debtListNotifs.POST("/schedule", notificationHandler.EnableDebtNotifications)
+					debtListNotifs.DELETE("/schedule", notificationHandler.DisableDebtNotifications)
+					debtListNotifs.DELETE("/slots", notificationHandler.DeleteDebtNotificationSlot)
+					debtListNotifs.GET("/send-limits", notificationHandler.GetManualSendLimits)
+				}
+
+				// Per-notification operations
 				notifications.GET("/:id", notificationHandler.GetNotification)
 				notifications.DELETE("/:id", notificationHandler.DeleteNotification)
 				notifications.POST("/:id/enable", notificationHandler.EnableNotification)
 				notifications.POST("/:id/disable", notificationHandler.DisableNotification)
-				
-				// Debt list notification operations
-				notifications.POST("/schedule", notificationHandler.ScheduleNotifications)
-				notifications.GET("/debt-lists/:debt_list_id", notificationHandler.GetNotificationsByDebtList)
-				
-				// Manual notification sending
-				notifications.POST("/send", notificationHandler.SendManualNotification)
 			}
 
 			// User settings routes

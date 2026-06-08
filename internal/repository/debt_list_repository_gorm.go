@@ -240,6 +240,16 @@ func (r *debtListRepositoryGORM) UpdateNextPaymentDate(ctx context.Context, debt
 	return nil
 }
 
+func (r *debtListRepositoryGORM) UpdateNotificationSettings(ctx context.Context, debtListID uuid.UUID, updates map[string]interface{}) error {
+	updates["updated_at"] = time.Now()
+	if err := r.db.WithContext(ctx).Model(&models.DebtList{}).
+		Where("id = ?", debtListID).
+		Updates(updates).Error; err != nil {
+		return fmt.Errorf("failed to update notification settings: %w", err)
+	}
+	return nil
+}
+
 // entityToGORM converts a domain entity to GORM model
 func (r *debtListRepositoryGORM) entityToGORM(debtList *entities.DebtList) *models.DebtList {
 	return &models.DebtList{

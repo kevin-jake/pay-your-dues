@@ -37,7 +37,7 @@ export const WebhookConfiguration = ({
           {/* Webhook Notifications Master Toggle */}
           <NotificationToggle
             label="Enable Webhook Notifications"
-            description="Send notifications to configured webhooks (Slack, Telegram, Discord)"
+            description="Send payment reminders to Slack, Telegram, or Discord (external delivery channels, not in-app notifications)"
             enabled={webhookEnabled}
             onChange={onWebhookToggle}
             disabled={isSaving}
