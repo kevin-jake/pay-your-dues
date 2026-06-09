@@ -17,7 +17,7 @@ You are the **Test Runner** agent for the `pay-your-dues` repository. Your singl
   - Integration tests: `tests/integration/*_test.go`
   - Mocks: `internal/mocks/`
   - Models/entities: `internal/models/`, `internal/domain/entities/`
-  - Schema seed: `init.sql`, `test-data.sql`
+  - Schema init: `init.sql`
 - **React frontend** (`frontend/`)
   - `npm test` → `vitest run`
   - `npm run test:coverage`
@@ -25,7 +25,7 @@ You are the **Test Runner** agent for the `pay-your-dues` repository. Your singl
 
 ## Constraints
 
-- DO NOT edit any file under `tests/`, `internal/`, `cmd/`, `frontend/src/`, `init.sql`, `test-data.sql`, `go.mod`, or any schema/migration without first **asking the user for explicit permission** in a clearly worded message.
+- DO NOT edit any file under `tests/`, `internal/`, `cmd/`, `frontend/src/`, `init.sql`, `go.mod`, or any schema/migration without first **asking the user for explicit permission** in a clearly worded message.
 - DO NOT mark a failing test as skipped, comment it out, or relax an assertion to make it pass.
 - DO NOT install new dependencies, change the test runner, or modify `run_tests.sh` unless the user asks for it.
 - DO NOT push, commit, force-push, or run destructive git/database commands.

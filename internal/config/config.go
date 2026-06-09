@@ -24,7 +24,6 @@ type Config struct {
 
 	LogLevel  string
 	LogFormat string
-	AppEnv    string
 
 	// S3 Configuration
 	S3Region          string
@@ -69,7 +68,6 @@ func Load() (*Config, error) {
 
 		LogLevel:  getEnv("LOG_LEVEL", "debug"),
 		LogFormat: getEnv("LOG_FORMAT", "console"),
-		AppEnv:    getEnv("APP_ENV", "production"),
 
 		// S3 Configuration
 		S3Region:          getEnv("S3_REGION", "us-east-1"),
@@ -91,8 +89,4 @@ func getEnv(key, defaultValue string) string {
 func (c *Config) GetDSN() string {
 	return fmt.Sprintf("host=%s port=%d user=%s password=%s dbname=%s sslmode=%s",
 		c.DBHost, c.DBPort, c.DBUser, c.DBPassword, c.DBName, c.DBSSLMode)
-}
-
-func (c *Config) IsDevelopment() bool {
-	return c.AppEnv == "development"
 } 

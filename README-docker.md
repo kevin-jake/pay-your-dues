@@ -136,7 +136,7 @@ environment:
 
 ### Initialization script
 
-Edit `init.sql` to add database extensions, schemas, or seed data on first PostgreSQL startup.
+Edit `init.sql` to add database extensions or other first-start PostgreSQL setup. Application tables are created by GORM AutoMigrate when the API server starts.
 
 ## Troubleshooting
 

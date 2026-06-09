@@ -58,14 +58,6 @@ func main() {
 
 	logger.Info().Msg("Database connected successfully")
 
-	if cfg.IsDevelopment() {
-		if err := database.SeedDevelopmentData(db.DB, os.Getenv("SEED_DATA_FILE")); err != nil {
-			logger.Fatal().Err(err).Msg("Failed to seed development data")
-		}
-	} else {
-		logger.Info().Str("app_env", cfg.AppEnv).Msg("Skipping development seed data")
-	}
-
 	// Initialize repositories
 	userRepo := repository.NewUserRepositoryGORM(db.DB)
 	contactRepo := repository.NewContactRepositoryGORM(db.DB)
@@ -107,12 +99,6 @@ func main() {
 		db.DB,
 		logger,
 	)
-
-	if cfg.IsDevelopment() {
-		if err := services.BackfillSeedDebtNotifications(context.Background(), db.DB, notificationService, logger); err != nil {
-			logger.Fatal().Err(err).Msg("Failed to backfill seed debt notifications")
-		}
-	}
 
 	debtService := services.NewDebtService(debtListRepo, debtItemRepo, contactRepo, paymentScheduleService, s3Service, notificationService)
 
