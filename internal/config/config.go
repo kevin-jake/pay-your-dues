@@ -22,8 +22,9 @@ type Config struct {
 	JWTSecret  string
 	JWTExpiry  string
 
-	LogLevel string
-	AppEnv   string
+	LogLevel  string
+	LogFormat string
+	AppEnv    string
 
 	// S3 Configuration
 	S3Region          string
@@ -66,8 +67,9 @@ func Load() (*Config, error) {
 		JWTSecret: getEnv("JWT_SECRET", "your-secret-key-here"),
 		JWTExpiry: getEnv("JWT_EXPIRY", "24h"),
 
-		LogLevel: getEnv("LOG_LEVEL", "debug"),
-		AppEnv:   getEnv("APP_ENV", "production"),
+		LogLevel:  getEnv("LOG_LEVEL", "debug"),
+		LogFormat: getEnv("LOG_FORMAT", "console"),
+		AppEnv:    getEnv("APP_ENV", "production"),
 
 		// S3 Configuration
 		S3Region:          getEnv("S3_REGION", "us-east-1"),

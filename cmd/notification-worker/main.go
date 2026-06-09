@@ -14,6 +14,7 @@ import (
 
 	"pay-your-dues/internal/config"
 	"pay-your-dues/internal/database"
+	applogger "pay-your-dues/internal/logger"
 	"pay-your-dues/internal/messaging"
 	"pay-your-dues/internal/repository"
 	"pay-your-dues/internal/services"
@@ -21,13 +22,9 @@ import (
 )
 
 func main() {
-	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
-	logger := zerolog.New(os.Stderr).With().Timestamp().Caller().Logger()
-	log.Logger = logger
-
 	cfg, err := config.Load()
 	if err != nil {
-		logger.Fatal().Err(err).Msg("Failed to load configuration")
+		log.Fatal().Err(err).Msg("Failed to load configuration")
 	}
 
 	level, err := zerolog.ParseLevel(cfg.LogLevel)
@@ -35,6 +32,14 @@ func main() {
 		level = zerolog.InfoLevel
 	}
 	zerolog.SetGlobalLevel(level)
+
+	logger := applogger.New(level, cfg.LogFormat)
+	log.Logger = logger
+
+	logger.Info().
+		Str("log_level", level.String()).
+		Str("log_format", cfg.LogFormat).
+		Msg("Logger initialized")
 
 	notificationCfg := config.LoadNotificationConfig()
 	rabbitCfg := config.LoadRabbitMQConfig()

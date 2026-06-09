@@ -17,6 +17,7 @@ import (
 	"pay-your-dues/internal/database"
 	"pay-your-dues/internal/domain/interfaces"
 	"pay-your-dues/internal/handlers"
+	applogger "pay-your-dues/internal/logger"
 	"pay-your-dues/internal/middleware"
 	"pay-your-dues/internal/messaging"
 	"pay-your-dues/internal/repository"
@@ -24,31 +25,25 @@ import (
 )
 
 func main() {
-	// Initialize logger with structured format
-	zerolog.TimeFieldFormat = zerolog.TimeFormatUnix
-	logger := zerolog.New(os.Stderr).With().
-		Timestamp().
-		Caller().
-		Logger()
-
-	// Set global logger
-	log.Logger = logger
-
-	// Load configuration
+	// Load configuration first so the logger can honor LOG_LEVEL/LOG_FORMAT.
 	cfg, err := config.Load()
 	if err != nil {
-		logger.Fatal().Err(err).Msg("Failed to load configuration")
+		log.Fatal().Err(err).Msg("Failed to load configuration")
 	}
 
-	// Set log level
 	level, err := zerolog.ParseLevel(cfg.LogLevel)
 	if err != nil {
-		logger.Warn().Str("level", cfg.LogLevel).Msg("Invalid log level, defaulting to info")
 		level = zerolog.InfoLevel
 	}
 	zerolog.SetGlobalLevel(level)
 
-	logger.Info().Str("log_level", level.String()).Msg("Logger initialized")
+	logger := applogger.New(level, cfg.LogFormat)
+	log.Logger = logger
+
+	logger.Info().
+		Str("log_level", level.String()).
+		Str("log_format", cfg.LogFormat).
+		Msg("Logger initialized")
 
 	// Initialize database with GORM
 	db, err := database.NewDatabase(cfg.GetDSN())
@@ -112,6 +107,12 @@ func main() {
 		db.DB,
 		logger,
 	)
+
+	if cfg.IsDevelopment() {
+		if err := services.BackfillSeedDebtNotifications(context.Background(), db.DB, notificationService, logger); err != nil {
+			logger.Fatal().Err(err).Msg("Failed to backfill seed debt notifications")
+		}
+	}
 
 	debtService := services.NewDebtService(debtListRepo, debtItemRepo, contactRepo, paymentScheduleService, s3Service, notificationService)
 
